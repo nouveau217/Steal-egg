@@ -29,6 +29,41 @@ local function GetCamera()
     return Workspace.CurrentCamera or Workspace:FindFirstChildOfClass("Camera")
 end
 
+-- ==============================================================================
+-- EARLY GUI BOOTSTRAP
+-- Create a tiny visible marker before optional executor/debug code. This guarantees
+-- there is visual feedback even if a later optional feature is unsupported.
+-- ==============================================================================
+local BootstrapGui = nil
+pcall(function()
+    local pg = LP and LP:FindFirstChildOfClass("PlayerGui")
+    if not pg then return end
+    local old = pg:FindFirstChild("SPEENO_BOOTSTRAP")
+    if old then old:Destroy() end
+    local g = Instance.new("ScreenGui")
+    g.Name = "SPEENO_BOOTSTRAP"
+    g.ResetOnSpawn = false
+    g.IgnoreGuiInset = true
+    g.DisplayOrder = 2147483647
+    g.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    local f = Instance.new("TextLabel")
+    f.AnchorPoint = Vector2.new(0.5, 0.5)
+    f.Position = UDim2.fromScale(0.5, 0.5)
+    f.Size = UDim2.fromOffset(220, 44)
+    f.BackgroundColor3 = Color3.fromRGB(16, 17, 21)
+    f.BorderSizePixel = 0
+    f.Text = "SPEENO  •  Loading..."
+    f.Font = Enum.Font.GothamBold
+    f.TextSize = 13
+    f.TextColor3 = Color3.fromRGB(255, 255, 255)
+    f.Parent = g
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 10)
+    c.Parent = f
+    g.Parent = pg
+    BootstrapGui = g
+end)
+
 -- Instant ProximityPrompt Hold Eliminator (Ensures 0s hold on egg pickup)
 pcall(function()
     local pps = game:GetService("ProximityPromptService")
@@ -255,7 +290,24 @@ end
 -- ==============================================================================
 -- BAC TELEMETRY PACKET SPOOFER
 -- ==============================================================================
-local bxor = bit32.bxor
+local bxor
+if type(bit32) == "table" and type(bit32.bxor) == "function" then
+    bxor = bit32.bxor
+else
+    bxor = function(a, b)
+        a = math.floor(tonumber(a) or 0)
+        b = math.floor(tonumber(b) or 0)
+        local out, bit = 0, 1
+        for _ = 1, 32 do
+            if (a % 2) ~= (b % 2) then out = out + bit end
+            a = math.floor(a / 2)
+            b = math.floor(b / 2)
+            bit = bit * 2
+            if a == 0 and b == 0 then break end
+        end
+        return out
+    end
+end
 local unpack = table.unpack
 
 local function isGuid(n)
@@ -2563,8 +2615,10 @@ end
 -- ===============================================================================
 -- CUSTOM GUI - BUILT DIRECTLY WITH ROBLOX INSTANCES
 -- No external UI library / no old UI system / no old tab or button objects.
+-- The whole builder lives in its own function to avoid Luau's 200-local limit
+-- in the main script chunk.
 -- ===============================================================================
-do
+local function BuildGUI()
     -- Use the most reliable GUI container available in executors, then fall back
     -- to PlayerGui for normal LocalScript execution.
     local guiParent
@@ -2596,6 +2650,29 @@ do
     screen.DisplayOrder = 999999
     screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screen.Enabled = true
+    GUI = {
+        Screen = screen,
+        Notify = function(self, titleText, contentText, kind, dur)
+            pcall(function()
+                local n = Instance.new("TextLabel")
+                n.Name = "Notification"
+                n.AnchorPoint = Vector2.new(1, 0)
+                n.Position = UDim2.new(1, -12, 0, 58)
+                n.Size = UDim2.fromOffset(250, 42)
+                n.BackgroundColor3 = Color3.fromRGB(28, 30, 37)
+                n.BorderSizePixel = 0
+                n.Text = tostring(titleText or "SPEENO") .. "\n" .. tostring(contentText or "")
+                n.Font = Enum.Font.GothamSemibold
+                n.TextSize = 10
+                n.TextWrapped = true
+                n.Parent = screen
+                local c = Instance.new("UICorner")
+                c.CornerRadius = UDim.new(0, 8)
+                c.Parent = n
+                task.delay(tonumber(dur) or 2.5, function() pcall(function() n:Destroy() end) end)
+            end)
+        end
+    }
     local parentOK = pcall(function() screen.Parent = guiParent end)
     if not parentOK or not screen.Parent then
         local pg = LP:FindFirstChildOfClass("PlayerGui")
@@ -3161,7 +3238,11 @@ do
     close.Activated:Connect(function() if State.Unload then State.Unload() else screen:Destroy() end end)
 
     showPage("Eggs")
+    pcall(function() if BootstrapGui then BootstrapGui:Destroy() end end)
+    BootstrapGui = nil
 end
+
+BuildGUI()
 
 -- ===============================================================================
 -- GUI CLEANUP & UNLOAD HANDLER
