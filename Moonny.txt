@@ -94,7 +94,7 @@ local function Notify(title, content, kind, dur)
     if GUI and GUI.Notify then GUI:Notify(title, content, kind, dur) end
 end
 local function safeCallback(fn)
-    return function(...) local ok,err=pcall(fn,...); if not ok then Notify("SPEEDNO HUB","ข้อผิดพลาด: "..tostring(err),"ข้อผิดพลาด",4) end end
+    return function(...) local ok,err=pcall(fn,...); if not ok then Notify("เมนูหลัก","ข้อผิดพลาด: "..tostring(err),"ข้อผิดพลาด",4) end end
 end
 
 -- CLIENT AC NEUTRALIZER & UGI CONSTANT WIPER (Layer 1 + Layer 2)
@@ -2661,7 +2661,7 @@ local function BuildGUI()
                 n.Size = UDim2.fromOffset(250, 42)
                 n.BackgroundColor3 = Color3.fromRGB(28, 30, 37)
                 n.BorderSizePixel = 0
-                n.Text = tostring(titleText or "SPEEDNO HUB") .. "\n" .. tostring(contentText or "")
+                n.Text = tostring(titleText or "เมนูหลัก") .. "\n" .. tostring(contentText or "")
                 n.Font = Enum.Font.GothamSemibold
                 n.TextSize = 10
                 n.TextWrapped = true
@@ -2729,7 +2729,7 @@ local function BuildGUI()
     title.BackgroundTransparency = 1
     title.Position = UDim2.fromOffset(11, 4)
     title.Size = UDim2.new(1, -95, 0, 20)
-    title.Text = "SPEEDNO HUB"
+    title.Text = "เมนูหลัก"
     title.Font = Enum.Font.GothamBold
     title.TextSize = 15
     title.TextColor3 = TEXT
@@ -2740,7 +2740,7 @@ local function BuildGUI()
     subTitle.BackgroundTransparency = 1
     subTitle.Position = UDim2.fromOffset(11, 23)
     subTitle.Size = UDim2.new(1, -95, 0, 12)
-    subTitle.Text = "discord.gg/42J7hEtnv"
+    subTitle.Text = "แผงควบคุม"
     subTitle.Font = Enum.Font.Gotham
     subTitle.TextSize = 8
     subTitle.TextTransparency = 0.05
@@ -2751,7 +2751,7 @@ local function BuildGUI()
     local minimize = Instance.new("TextButton")
     minimize.Size = UDim2.fromOffset(32, 30)
     minimize.Position = UDim2.new(1, -72, 0, 8)
-    minimize.Text = "—"
+    minimize.Text = "ย่อ"
     minimize.Font = Enum.Font.GothamBold
     minimize.TextSize = 18
     minimize.BackgroundColor3 = Color3.fromRGB(29, 20, 24)
@@ -2763,7 +2763,7 @@ local function BuildGUI()
     local close = Instance.new("TextButton")
     close.Size = UDim2.fromOffset(32, 30)
     close.Position = UDim2.new(1, -36, 0, 8)
-    close.Text = "X"
+    close.Text = "ปิด"
     close.Font = Enum.Font.GothamBold
     close.TextSize = 18
     close.BackgroundColor3 = Color3.fromRGB(29, 20, 24)
@@ -2981,15 +2981,17 @@ local function BuildGUI()
         local row = Instance.new("Frame")
         row.Size = UDim2.new(1, 0, 0, 32)
         row.BackgroundTransparency = 1
+        row.ZIndex = 50
         row.Parent = parent
         local mainBtn = roundedButton(row, "", 32)
+        mainBtn.ZIndex = 51
         local popup = Instance.new("Frame")
         popup.Visible = false
         popup.Position = UDim2.new(0, 0, 1, 4)
         popup.Size = UDim2.new(1, 0, 0, math.min(190, math.max(36, #options * 30)))
         popup.BackgroundColor3 = Color3.fromRGB(20, 15, 19)
         popup.BorderSizePixel = 0
-        popup.ZIndex = 20
+        popup.ZIndex = 100
         popup.Parent = row
         Instance.new("UICorner", popup).CornerRadius = UDim.new(0, 8)
         local popScroll = Instance.new("ScrollingFrame")
@@ -2999,7 +3001,7 @@ local function BuildGUI()
         popScroll.ScrollBarThickness = 3
         popScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
         popScroll.CanvasSize = UDim2.fromOffset(0, 0)
-        popScroll.ZIndex = 21
+        popScroll.ZIndex = 101
         popScroll.Parent = popup
         local pl = Instance.new("UIListLayout", popScroll)
         pl.Padding = UDim.new(0, 3)
@@ -3012,13 +3014,15 @@ local function BuildGUI()
         end
         for _, option in ipairs(options) do
             local ob = roundedButton(popScroll, displayOption(option), 28)
-            ob.ZIndex = 22
+            ob.ZIndex = 102
+            ob.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
             local busy = false
             ob.Activated:Connect(function()
                 if busy then return end
                 busy = true
                 value = option
                 popup.Visible = false
+                ob.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
                 refresh()
                 task.spawn(function()
                     pcall(callback, value)
@@ -3039,7 +3043,8 @@ local function BuildGUI()
                 options = newOptions or {}
                 for _, option in ipairs(options) do
                     local ob = roundedButton(popScroll, displayOption(option), 28)
-                    ob.ZIndex = 22
+                    ob.ZIndex = 102
+                    ob.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
                     local busy = false
                     ob.Activated:Connect(function()
                         if busy then return end
@@ -3061,19 +3066,21 @@ local function BuildGUI()
         local row = Instance.new("Frame")
         row.Size = UDim2.new(1, 0, 0, 32)
         row.BackgroundTransparency = 1
+        row.ZIndex = 50
         row.Parent = parent
         local mainBtn = roundedButton(row, "", 32)
+        mainBtn.ZIndex = 51
         local popup = Instance.new("Frame")
         popup.Visible = false
         popup.Position = UDim2.new(0, 0, 1, 4)
         popup.Size = UDim2.new(1, 0, 0, math.min(210, math.max(40, #options * 30)))
         popup.BackgroundColor3 = Color3.fromRGB(20, 15, 19)
         popup.BorderSizePixel = 0
-        popup.ZIndex = 20
+        popup.ZIndex = 100
         popup.Parent = row
         Instance.new("UICorner", popup).CornerRadius = UDim.new(0, 8)
         local sc = Instance.new("ScrollingFrame")
-        sc.Size = UDim2.fromScale(1, 1); sc.BackgroundTransparency = 1; sc.BorderSizePixel = 0; sc.ScrollBarThickness = 3; sc.AutomaticCanvasSize = Enum.AutomaticSize.Y; sc.CanvasSize = UDim2.fromOffset(0,0); sc.ZIndex=21; sc.Parent=popup
+        sc.Size = UDim2.fromScale(1, 1); sc.BackgroundTransparency = 1; sc.BorderSizePixel = 0; sc.ScrollBarThickness = 3; sc.AutomaticCanvasSize = Enum.AutomaticSize.Y; sc.CanvasSize = UDim2.fromOffset(0,0); sc.ZIndex=101; sc.Parent=popup
         local lay = Instance.new("UIListLayout", sc); lay.Padding=UDim.new(0,3)
         local pad = Instance.new("UIPadding", sc); pad.PaddingTop=UDim.new(0,5); pad.PaddingBottom=UDim.new(0,5); pad.PaddingLeft=UDim.new(0,5); pad.PaddingRight=UDim.new(0,5)
 
@@ -3086,8 +3093,12 @@ local function BuildGUI()
         end
         local function emit() pcall(callback, selected) end
         for _, option in ipairs(options) do
-            local ob = roundedButton(sc, "", 28); ob.ZIndex=22
-            local function rr() ob.Text = (selected[option] and "เลือก " or "ไม่เลือก ") .. displayOption(option) end
+            local ob = roundedButton(sc, "", 28); ob.ZIndex=102
+            ob.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+            local function rr()
+                ob.Text = (selected[option] and "เลือก " or "ไม่เลือก ") .. displayOption(option)
+                ob.BackgroundColor3 = selected[option] and Color3.fromRGB(45, 45, 50) or Color3.fromRGB(12, 12, 16)
+            end
             local busy = false
             ob.Activated:Connect(function()
                 if busy then return end
@@ -3160,12 +3171,12 @@ local function BuildGUI()
         local c=makeText(box,text,34,false); c.Position=UDim2.fromOffset(10,28); c.Size=UDim2.new(1,-20,0,34); c.TextWrapped=true; c.TextTransparency=.3; c.TextYAlignment=Enum.TextYAlignment.Top
     end
 
-    local Eggs = createPage("Eggs")
-    local Base = createPage("Base")
-    local Combat = createPage("Combat")
-    local Player = createPage("Player")
-    local Settings = createPage("Setting")
-    for _, n in ipairs({"Eggs","Base","Combat","Player","Setting"}) do addSidebarTab(n) end
+    local Eggs = createPage("ไข่")
+    local Base = createPage("ฐาน")
+    local Combat = createPage("ต่อสู้")
+    local Player = createPage("ผู้เล่น")
+    local Settings = createPage("ตั้งค่า")
+    for _, n in ipairs({"ไข่","ฐาน","ต่อสู้","ผู้เล่น","ตั้งค่า"}) do addSidebarTab(n) end
 
     -- EGGS
     section(Eggs,"ขโมยอัตโนมัติ")
@@ -3266,7 +3277,7 @@ local function BuildGUI()
     addAction(Player,"ลบภาพสัตว์เลี้ยงของฉันเพื่อเพิ่มประสิทธิภาพ",safeCallback(function() Notify("ประสิทธิภาพ","ลบแล้ว "..DeleteOwnPetRenders().." โมเดล","สำเร็จ") end))
 
     -- SETTINGS
-    section(Settings,"การตั้งค่า")
+    section(Settings,"การควบคุม")
     addAction(Settings,"ซ่อน / แสดงเมนู",function() main.Visible=not main.Visible; if mini then mini.Visible=not main.Visible end end)
     addAction(Settings,"ปิดสคริปต์ / หยุดทั้งหมด",function() if State.Unload then State.Unload() end end)
     addInfo(Settings,"เมนูหลัก","เมนูควบคุมแบบกำหนดเอง แถบด้านซ้าย รองรับการสัมผัสและเมาส์ ขนาดกะทัดรัด")
@@ -3364,7 +3375,7 @@ local function BuildGUI()
     -- Close button stops the script through the same cleanup path.
     close.Activated:Connect(function() if State.Unload then State.Unload() else screen:Destroy() end end)
 
-    showPage("Eggs")
+    showPage("ไข่")
     pcall(function() if BootstrapGui then BootstrapGui:Destroy() end end)
     BootstrapGui = nil
 end
@@ -3405,4 +3416,4 @@ State.Unload = function()
     end)
 end
 
-Notify("SPEEDNO HUB", "โหลด GUI สำเร็จ", "Success", 3.5)
+Notify("เมนูหลัก", "โหลด GUI แบบกำหนดเองสำเร็จ", "Success", 3.5)
