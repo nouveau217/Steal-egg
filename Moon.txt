@@ -52,7 +52,7 @@ pcall(function()
     f.Size = UDim2.fromOffset(220, 44)
     f.BackgroundColor3 = Color3.fromRGB(16, 17, 21)
     f.BorderSizePixel = 0
-    f.Text = "SPEENO  •  Loading..."
+    f.Text = "กำลังโหลด"
     f.Font = Enum.Font.GothamBold
     f.TextSize = 13
     f.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -94,7 +94,7 @@ local function Notify(title, content, kind, dur)
     if GUI and GUI.Notify then GUI:Notify(title, content, kind, dur) end
 end
 local function safeCallback(fn)
-    return function(...) local ok,err=pcall(fn,...); if not ok then Notify("SPEENO","Error: "..tostring(err),"Error",4) end end
+    return function(...) local ok,err=pcall(fn,...); if not ok then Notify("เมนูหลัก","ข้อผิดพลาด: "..tostring(err),"ข้อผิดพลาด",4) end end
 end
 
 -- CLIENT AC NEUTRALIZER & UGI CONSTANT WIPER (Layer 1 + Layer 2)
@@ -1153,8 +1153,8 @@ local function GetMatchingFieldEggs(areasFilter, raritiesFilter, mutationsFilter
         end
     end
 
-    -- Rare Egg Hunter: sort matched eggs by total score descending (Highest Rarity First)
-    if #matched > 1 then
+    -- Rare Egg Hunter: only sort by score when the option is enabled.
+    if rareEggHunter and #matched > 1 then
         table.sort(matched, function(a, b)
             return a.score > b.score
         end)
@@ -1606,6 +1606,8 @@ local function StealSpecificEggRobust(targetItem)
     return carried or isPlayerCarryingEgg()
 end
 
+local HatchAllReadyEggs
+
 local function StealBestEggOnce()
     pcall(HatchAllReadyEggs)
     local eggs = GetMatchingFieldEggs(selectedStealAreas, selectedStealRarities, selectedMutationTypes)
@@ -1617,7 +1619,7 @@ local function StealBestEggOnce()
     return StealSpecificEggRobust(target)
 end
 
-local function HatchAllReadyEggs()
+HatchAllReadyEggs = function()
     if not EggState or not EggState.ReadOwnedEggs then return 0 end
     local ok, snapshot = pcall(EggState.ReadOwnedEggs, LP.UserId)
     if not ok or not snapshot then return 0 end
@@ -1964,7 +1966,7 @@ function Boss.InstallHazardHook()
         touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
     end)
     if touchOnly then
-        Notify("Boss Hazards", "Hazard immunity is not supported on mobile - the boss can still hit you", "Error")
+        Notify("อันตรายของบอส", "การป้องกันอันตรายไม่รองรับบนมือถือ - บอสยังสามารถโจมตีคุณได้", "ข้อผิดพลาด")
         return false
     end
 
@@ -2140,6 +2142,7 @@ task.spawn(function()
     while not State.dead do
         if autoUpgradeBase then pcall(UpgradeHomesteadBase) end
         if autoUpgradeTreadmill then pcall(UpgradeTreadmillTier) end
+        if autoBuyTrails then pcall(BuyAffordableTrails) end
         if autoEquipBestPets then pcall(EquipBestPets) end
         if autoClaimRewards then pcall(ClaimAllAvailableRewards) end
         if Boss.autoMastery then pcall(Boss.ClaimMastery) end
@@ -2453,7 +2456,7 @@ track(RunService.RenderStepped:Connect(function()
                 obj.name.Visible = true
             end
             if obj.dist then
-                obj.dist.Text = math.floor(item.Dist) .. " studs"
+                obj.dist.Text = math.floor(item.Dist) .. " หน่วย"
                 obj.dist.Position = Vector2.new(screenPos.X, screenPos.Y + 2)
                 obj.dist.Color = Color3.fromRGB(220, 220, 220)
                 obj.dist.Visible = true
@@ -2508,6 +2511,34 @@ local flying           = false
 local flySpeed         = 60
 local antiAFK          = false
 
+-- Anti-ragdoll is controlled by its toggle.  The previous version only changed
+-- a variable, so turning the option on had no actual effect.
+local antiRagdollConn = nil
+local function SetAntiRagdoll(v)
+    antiRagdollEnabled = v == true
+    if antiRagdollConn then
+        pcall(function() antiRagdollConn:Disconnect() end)
+        antiRagdollConn = nil
+    end
+    if not antiRagdollEnabled then return end
+
+    local hum = findHum()
+    if not hum then return end
+    antiRagdollConn = track(hum.StateChanged:Connect(function(_, newState)
+        if not antiRagdollEnabled or State.dead then return end
+        if newState == Enum.HumanoidStateType.Ragdoll
+            or newState == Enum.HumanoidStateType.FallingDown
+            or newState == Enum.HumanoidStateType.Physics then
+            pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+        end
+    end))
+end
+
+track(LP.CharacterAdded:Connect(function()
+    task.wait(0.25)
+    if antiRagdollEnabled then SetAntiRagdoll(true) end
+end))
+
 local function ApplyWalkSpeed(v)
     walkSpeedVal = v
     local hum = findHum()
@@ -2533,7 +2564,7 @@ track(RunService.Stepped:Connect(function()
 end))
 
 track(UserInputService.JumpRequest:Connect(function()
-    if State.dead then return end
+    if State.dead or not infiniteJump then return end
     local hum = findHum()
     if hum then
         hum.Jump = true
@@ -2612,6 +2643,9 @@ local function SetAntiAFK(v)
     end
 end
 
+-- The option defaults to enabled, so apply it once after the helper exists.
+pcall(function() if antiRagdollEnabled then SetAntiRagdoll(true) end end)
+
 -- ===============================================================================
 -- CUSTOM GUI - BUILT DIRECTLY WITH ROBLOX INSTANCES
 -- No external UI library / no old UI system / no old tab or button objects.
@@ -2661,7 +2695,7 @@ local function BuildGUI()
                 n.Size = UDim2.fromOffset(250, 42)
                 n.BackgroundColor3 = Color3.fromRGB(28, 30, 37)
                 n.BorderSizePixel = 0
-                n.Text = tostring(titleText or "SPEENO") .. "\n" .. tostring(contentText or "")
+                n.Text = tostring(titleText or "เมนูหลัก") .. "\n" .. tostring(contentText or "")
                 n.Font = Enum.Font.GothamSemibold
                 n.TextSize = 10
                 n.TextWrapped = true
@@ -2702,8 +2736,8 @@ local function BuildGUI()
     main.Name = "Main"
     local camera = Workspace.CurrentCamera
     local viewport = camera and camera.ViewportSize or Vector2.new(800, 600)
-    local mainW = math.min(610, math.max(300, viewport.X - 20))
-    local mainH = math.min(390, math.max(280, viewport.Y - 20))
+    local mainW = math.min(480, math.max(270, viewport.X - 16))
+    local mainH = math.min(310, math.max(230, viewport.Y - 16))
     main.Size = UDim2.fromOffset(mainW, mainH)
     main.Position = UDim2.new(0.5, -mainW / 2, 0.5, -mainH / 2)
     main.BackgroundColor3 = Color3.fromRGB(10, 10, 13)
@@ -2718,7 +2752,7 @@ local function BuildGUI()
 
     local top = Instance.new("Frame")
     top.Name = "Header"
-    top.Size = UDim2.new(1, 0, 0, 46)
+    top.Size = UDim2.new(1, 0, 0, 40)
     top.BackgroundColor3 = Color3.fromRGB(14, 14, 18)
     top.BorderSizePixel = 0
     top.Parent = main
@@ -2727,22 +2761,22 @@ local function BuildGUI()
 
     local title = Instance.new("TextLabel")
     title.BackgroundTransparency = 1
-    title.Position = UDim2.fromOffset(14, 5)
-    title.Size = UDim2.new(1, -115, 0, 23)
-    title.Text = "SPEENO"
+    title.Position = UDim2.fromOffset(11, 4)
+    title.Size = UDim2.new(1, -95, 0, 20)
+    title.Text = "เมนูหลัก"
     title.Font = Enum.Font.GothamBold
-    title.TextSize = 17
+    title.TextSize = 15
     title.TextColor3 = TEXT
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.Parent = top
 
     local subTitle = Instance.new("TextLabel")
     subTitle.BackgroundTransparency = 1
-    subTitle.Position = UDim2.fromOffset(14, 26)
-    subTitle.Size = UDim2.new(1, -115, 0, 14)
-    subTitle.Text = "CUSTOM CONTROL PANEL"
+    subTitle.Position = UDim2.fromOffset(11, 23)
+    subTitle.Size = UDim2.new(1, -95, 0, 12)
+    subTitle.Text = "แผงควบคุม"
     subTitle.Font = Enum.Font.Gotham
-    subTitle.TextSize = 9
+    subTitle.TextSize = 8
     subTitle.TextTransparency = 0.05
     subTitle.TextColor3 = MUTED
     subTitle.TextXAlignment = Enum.TextXAlignment.Left
@@ -2751,7 +2785,7 @@ local function BuildGUI()
     local minimize = Instance.new("TextButton")
     minimize.Size = UDim2.fromOffset(32, 30)
     minimize.Position = UDim2.new(1, -72, 0, 8)
-    minimize.Text = "—"
+    minimize.Text = "ย่อ"
     minimize.Font = Enum.Font.GothamBold
     minimize.TextSize = 18
     minimize.BackgroundColor3 = Color3.fromRGB(29, 20, 24)
@@ -2763,7 +2797,7 @@ local function BuildGUI()
     local close = Instance.new("TextButton")
     close.Size = UDim2.fromOffset(32, 30)
     close.Position = UDim2.new(1, -36, 0, 8)
-    close.Text = "×"
+    close.Text = "ปิด"
     close.Font = Enum.Font.GothamBold
     close.TextSize = 18
     close.BackgroundColor3 = Color3.fromRGB(29, 20, 24)
@@ -2774,15 +2808,15 @@ local function BuildGUI()
 
     local body = Instance.new("Frame")
     body.Name = "Body"
-    body.Position = UDim2.fromOffset(8, 52)
-    body.Size = UDim2.new(1, -16, 1, -60)
+    body.Position = UDim2.fromOffset(7, 46)
+    body.Size = UDim2.new(1, -14, 1, -53)
     body.BackgroundTransparency = 1
     body.Parent = main
 
     -- LEFT SIDEBAR: independently scrollable and touch friendly.
     local sidebar = Instance.new("ScrollingFrame")
     sidebar.Name = "Sidebar"
-    sidebar.Size = UDim2.new(0, math.min(132, math.max(92, mainW * 0.23)), 1, 0)
+    sidebar.Size = UDim2.new(0, math.min(112, math.max(82, mainW * 0.22)), 1, 0)
     sidebar.Position = UDim2.fromOffset(0, 0)
     sidebar.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
     sidebar.BorderSizePixel = 0
@@ -2794,12 +2828,12 @@ local function BuildGUI()
     Instance.new("UICorner", sidebar).CornerRadius = UDim.new(0, 9)
     addGradient(sidebar, 90, Color3.fromRGB(11, 11, 15), Color3.fromRGB(40, 9, 15))
     local sidePad = Instance.new("UIPadding", sidebar)
-    sidePad.PaddingTop = UDim.new(0, 7)
-    sidePad.PaddingBottom = UDim.new(0, 7)
-    sidePad.PaddingLeft = UDim.new(0, 7)
-    sidePad.PaddingRight = UDim.new(0, 7)
+    sidePad.PaddingTop = UDim.new(0, 5)
+    sidePad.PaddingBottom = UDim.new(0, 5)
+    sidePad.PaddingLeft = UDim.new(0, 5)
+    sidePad.PaddingRight = UDim.new(0, 5)
     local sideLayout = Instance.new("UIListLayout", sidebar)
-    sideLayout.Padding = UDim.new(0, 6)
+    sideLayout.Padding = UDim.new(0, 4)
     sideLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
     -- RIGHT CONTENT: one page at a time, independently scrollable.
@@ -2838,7 +2872,7 @@ local function BuildGUI()
         b.BorderSizePixel = 0
         b.Text = text or ""
         b.Font = Enum.Font.GothamSemibold
-        b.TextSize = 11
+        b.TextSize = 10
         b.TextColor3 = TEXT
         b.TextXAlignment = Enum.TextXAlignment.Left
         b.AutoButtonColor = false
@@ -2849,8 +2883,8 @@ local function BuildGUI()
         bs.Transparency = 0.82
         bs.Color = Color3.fromRGB(112, 30, 40)
         local pad = Instance.new("UIPadding", b)
-        pad.PaddingLeft = UDim.new(0, 10)
-        pad.PaddingRight = UDim.new(0, 8)
+        pad.PaddingLeft = UDim.new(0, 8)
+        pad.PaddingRight = UDim.new(0, 6)
         return b
     end
 
@@ -2866,12 +2900,12 @@ local function BuildGUI()
         page.Visible = false
         page.Parent = content
         local pad = Instance.new("UIPadding", page)
-        pad.PaddingTop = UDim.new(0, 9)
-        pad.PaddingBottom = UDim.new(0, 12)
-        pad.PaddingLeft = UDim.new(0, 10)
-        pad.PaddingRight = UDim.new(0, 10)
+        pad.PaddingTop = UDim.new(0, 6)
+        pad.PaddingBottom = UDim.new(0, 8)
+        pad.PaddingLeft = UDim.new(0, 8)
+        pad.PaddingRight = UDim.new(0, 7)
         local layout = Instance.new("UIListLayout", page)
-        layout.Padding = UDim.new(0, 7)
+        layout.Padding = UDim.new(0, 5)
         layout.SortOrder = Enum.SortOrder.LayoutOrder
         pages[name] = page
         return page
@@ -2888,7 +2922,7 @@ local function BuildGUI()
     end
 
     local function addSidebarTab(name)
-        local b = roundedButton(sidebar, name, 38)
+        local b = roundedButton(sidebar, name, 32)
         b.TextXAlignment = Enum.TextXAlignment.Center
         b.Activated:Connect(function() showPage(name) end)
         sideButtons[name] = b
@@ -2897,41 +2931,81 @@ local function BuildGUI()
 
     local function section(parent, name)
         local box = Instance.new("Frame")
-        box.Size = UDim2.new(1, 0, 0, 30)
+        box.Size = UDim2.new(1, 0, 0, 26)
         box.BackgroundTransparency = 1
         box.Parent = parent
-        local l = makeText(box, name, 30, true)
+        local l = makeText(box, name, 26, true)
         l.TextTransparency = 0.12
         return box
     end
 
     local function addToggle(parent, name, default, callback)
         local value = default == true
-        local b = roundedButton(parent, "", 36)
+        local b = roundedButton(parent, "", 32)
+        local busy = false
         local function refresh()
-            b.Text = name .. "    [" .. (value and "ON" or "OFF") .. "]"
+            b.Text = name .. "  " .. (value and "ปิด" or "เปิด")
             b.BackgroundColor3 = value and Color3.fromRGB(78, 20, 29) or Color3.fromRGB(25, 25, 31)
+            b.TextColor3 = value and TEXT or MUTED
+        end
+        local function apply(nextValue)
+            if busy then return false end
+            busy = true
+            value = nextValue == true
+            refresh()
+            local ok = pcall(callback, value)
+            busy = false
+            return ok
         end
         b.Activated:Connect(function()
-            value = not value
-            refresh()
-            pcall(callback, value)
+            apply(not value)
         end)
         refresh()
         return {
             Get = function() return value end,
-            Set = function(v)
-                value = v == true
-                refresh()
-                pcall(callback, value)
-            end,
+            Set = function(v) apply(v) end,
         }
     end
 
     local function addAction(parent, name, callback)
-        local b = roundedButton(parent, name, 36)
-        b.Activated:Connect(function() pcall(callback) end)
+        local b = roundedButton(parent, name, 32)
+        local busy = false
+        b.Activated:Connect(function()
+            if busy then return end
+            busy = true
+            task.spawn(function()
+                pcall(callback)
+                task.wait(0.10)
+                busy = false
+            end)
+        end)
         return b
+    end
+
+    local function displayOption(v)
+        local map = {
+            ["Tween Glide"] = "เลื่อนนุ่มนวล",
+            ["Fly Glide"] = "บินนุ่มนวล",
+            ["Safe Walk"] = "เดินปลอดภัย",
+            ["Crystals First"] = "คริสตัลก่อน",
+            ["Boss First"] = "บอสก่อน",
+            ["Stands & Shops"] = "ร้านค้าและแผงขายของ", ["Forest"] = "ป่า", ["Lake"] = "ทะเลสาบ",
+            ["Desert"] = "ทะเลทราย", ["Jungle"] = "ป่าดงดิบ", ["Snow"] = "หิมะ", ["Volcano"] = "ภูเขาไฟ",
+            ["Abyss Ocean"] = "มหาสมุทรเหวลึก", ["Prehistoric"] = "ยุคดึกดำบรรพ์", ["Cosmic"] = "จักรวาล",
+            ["Cherry Blossom"] = "ซากุระ", ["Titan Temple"] = "วิหารไททัน", ["Light Dark"] = "แสงและความมืด",
+            ["Dragon Event"] = "อีเวนต์มังกร", ["Angels & Demons"] = "เทวดาและปีศาจ",
+            ["Light & Dark"] = "แสงและความมืด", ["Titan"] = "ไททัน", ["Divine"] = "ศักดิ์สิทธิ์", ["Superior"] = "ชั้นสูง",
+            ["Eternal"] = "นิรันดร์", ["Limited"] = "จำกัด", ["Secret"] = "ลับ", ["Exotic"] = "แปลกพิเศษ",
+            ["Exclusive"] = "พิเศษเฉพาะ", ["Mythic"] = "ตำนาน", ["Rainbow"] = "สายรุ้ง", ["Squishy God"] = "เทพนุ่มนิ่ม",
+            ["Celestial"] = "สวรรค์", ["Legendary"] = "ระดับตำนาน", ["Epic"] = "มหากาพย์", ["Rare"] = "หายาก",
+            ["SuperRare"] = "หายากมาก", ["Uncommon"] = "ไม่ธรรมดา", ["Common"] = "ทั่วไป",
+            ["Normal Only"] = "เฉพาะปกติ", ["Mutated Only"] = "เฉพาะกลายพันธุ์", ["Parasite / Infested"] = "ปรสิต / ติดเชื้อ",
+            ["Rainbow Only"] = "เฉพาะสายรุ้ง", ["Gold Only"] = "เฉพาะทอง", ["Silver Only"] = "เฉพาะเงิน", ["Monstrous"] = "อสูร",
+            ["Base / Plot"] = "ฐานและแปลง",
+            ["Plot 1"] = "แปลง 1", ["Plot 2"] = "แปลง 2", ["Plot 3"] = "แปลง 3", ["Plot 4"] = "แปลง 4",
+            ["Plot 5"] = "แปลง 5", ["Plot 6"] = "แปลง 6", ["Plot 7"] = "แปลง 7", ["My Plot"] = "แปลงของฉัน",
+        }
+        return map[tostring(v)] or tostring(v)
     end
 
     -- Real popup dropdown: tap the row, then tap an option.
@@ -2939,17 +3013,19 @@ local function BuildGUI()
         options = options or {}
         local value = default
         local row = Instance.new("Frame")
-        row.Size = UDim2.new(1, 0, 0, 36)
+        row.Size = UDim2.new(1, 0, 0, 32)
         row.BackgroundTransparency = 1
+        row.ZIndex = 50
         row.Parent = parent
-        local mainBtn = roundedButton(row, "", 36)
+        local mainBtn = roundedButton(row, "", 32)
+        mainBtn.ZIndex = 51
         local popup = Instance.new("Frame")
         popup.Visible = false
         popup.Position = UDim2.new(0, 0, 1, 4)
-        popup.Size = UDim2.new(1, 0, 0, math.min(190, math.max(38, #options * 34)))
+        popup.Size = UDim2.new(1, 0, 0, math.min(190, math.max(36, #options * 30)))
         popup.BackgroundColor3 = Color3.fromRGB(20, 15, 19)
         popup.BorderSizePixel = 0
-        popup.ZIndex = 20
+        popup.ZIndex = 100
         popup.Parent = row
         Instance.new("UICorner", popup).CornerRadius = UDim.new(0, 8)
         local popScroll = Instance.new("ScrollingFrame")
@@ -2959,7 +3035,7 @@ local function BuildGUI()
         popScroll.ScrollBarThickness = 3
         popScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
         popScroll.CanvasSize = UDim2.fromOffset(0, 0)
-        popScroll.ZIndex = 21
+        popScroll.ZIndex = 101
         popScroll.Parent = popup
         local pl = Instance.new("UIListLayout", popScroll)
         pl.Padding = UDim.new(0, 3)
@@ -2968,16 +3044,25 @@ local function BuildGUI()
         pp.PaddingTop = UDim.new(0, 5); pp.PaddingBottom = UDim.new(0, 5); pp.PaddingLeft = UDim.new(0, 5); pp.PaddingRight = UDim.new(0, 5)
 
         local function refresh()
-            mainBtn.Text = name .. ": " .. tostring(value or "None") .. "   ▾"
+            mainBtn.Text = name .. " " .. displayOption(value or "ไม่มี") .. ""
         end
         for _, option in ipairs(options) do
-            local ob = roundedButton(popScroll, tostring(option), 30)
-            ob.ZIndex = 22
+            local ob = roundedButton(popScroll, displayOption(option), 28)
+            ob.ZIndex = 102
+            ob.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+            local busy = false
             ob.Activated:Connect(function()
+                if busy then return end
+                busy = true
                 value = option
                 popup.Visible = false
+                ob.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
                 refresh()
-                pcall(callback, value)
+                task.spawn(function()
+                    pcall(callback, value)
+                    task.wait(0.06)
+                    busy = false
+                end)
             end)
         end
         mainBtn.Activated:Connect(function() popup.Visible = not popup.Visible end)
@@ -2991,10 +3076,15 @@ local function BuildGUI()
                 end
                 options = newOptions or {}
                 for _, option in ipairs(options) do
-                    local ob = roundedButton(popScroll, tostring(option), 30)
-                    ob.ZIndex = 22
+                    local ob = roundedButton(popScroll, displayOption(option), 28)
+                    ob.ZIndex = 102
+                    ob.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+                    local busy = false
                     ob.Activated:Connect(function()
-                        value = option; popup.Visible = false; refresh(); pcall(callback, value)
+                        if busy then return end
+                        busy = true
+                        value = option; popup.Visible = false; refresh()
+                        task.spawn(function() pcall(callback, value); task.wait(0.06); busy = false end)
                     end)
                 end
                 value = options[1]
@@ -3008,36 +3098,49 @@ local function BuildGUI()
         options = options or {}
         local selected = {}
         local row = Instance.new("Frame")
-        row.Size = UDim2.new(1, 0, 0, 36)
+        row.Size = UDim2.new(1, 0, 0, 32)
         row.BackgroundTransparency = 1
+        row.ZIndex = 50
         row.Parent = parent
-        local mainBtn = roundedButton(row, "", 36)
+        local mainBtn = roundedButton(row, "", 32)
+        mainBtn.ZIndex = 51
         local popup = Instance.new("Frame")
         popup.Visible = false
         popup.Position = UDim2.new(0, 0, 1, 4)
-        popup.Size = UDim2.new(1, 0, 0, math.min(210, math.max(40, #options * 34)))
+        popup.Size = UDim2.new(1, 0, 0, math.min(210, math.max(40, #options * 30)))
         popup.BackgroundColor3 = Color3.fromRGB(20, 15, 19)
         popup.BorderSizePixel = 0
-        popup.ZIndex = 20
+        popup.ZIndex = 100
         popup.Parent = row
         Instance.new("UICorner", popup).CornerRadius = UDim.new(0, 8)
         local sc = Instance.new("ScrollingFrame")
-        sc.Size = UDim2.fromScale(1, 1); sc.BackgroundTransparency = 1; sc.BorderSizePixel = 0; sc.ScrollBarThickness = 3; sc.AutomaticCanvasSize = Enum.AutomaticSize.Y; sc.CanvasSize = UDim2.fromOffset(0,0); sc.ZIndex=21; sc.Parent=popup
+        sc.Size = UDim2.fromScale(1, 1); sc.BackgroundTransparency = 1; sc.BorderSizePixel = 0; sc.ScrollBarThickness = 3; sc.AutomaticCanvasSize = Enum.AutomaticSize.Y; sc.CanvasSize = UDim2.fromOffset(0,0); sc.ZIndex=101; sc.Parent=popup
         local lay = Instance.new("UIListLayout", sc); lay.Padding=UDim.new(0,3)
         local pad = Instance.new("UIPadding", sc); pad.PaddingTop=UDim.new(0,5); pad.PaddingBottom=UDim.new(0,5); pad.PaddingLeft=UDim.new(0,5); pad.PaddingRight=UDim.new(0,5)
 
         local function refresh()
             local out = {}
-            for _, option in ipairs(options) do if selected[option] then table.insert(out, tostring(option)) end end
-            local text = (#out > 0) and table.concat(out, ", ") or "None"
+            for _, option in ipairs(options) do if selected[option] then table.insert(out, displayOption(option)) end end
+            local text = (#out > 0) and table.concat(out, ", ") or "ไม่มี"
             if #text > 45 then text = text:sub(1,42) .. "..." end
-            mainBtn.Text = name .. ": " .. text .. "   ▾"
+            mainBtn.Text = name .. " " .. text .. ""
         end
         local function emit() pcall(callback, selected) end
         for _, option in ipairs(options) do
-            local ob = roundedButton(sc, "", 30); ob.ZIndex=22
-            local function rr() ob.Text = (selected[option] and "✓ " or "□ ") .. tostring(option) end
-            ob.Activated:Connect(function() selected[option]=not selected[option]; rr(); refresh(); emit() end)
+            local ob = roundedButton(sc, "", 28); ob.ZIndex=102
+            ob.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+            local function rr()
+                ob.Text = (selected[option] and "เลือก " or "ไม่เลือก ") .. displayOption(option)
+                ob.BackgroundColor3 = selected[option] and Color3.fromRGB(45, 45, 50) or Color3.fromRGB(12, 12, 16)
+            end
+            local busy = false
+            ob.Activated:Connect(function()
+                if busy then return end
+                busy = true
+                selected[option]=not selected[option]
+                rr(); refresh(); emit()
+                task.delay(0.06, function() busy = false end)
+            end)
             rr()
         end
         mainBtn.Activated:Connect(function() popup.Visible=not popup.Visible end)
@@ -3050,14 +3153,14 @@ local function BuildGUI()
         local mn, mx = tonumber(minValue) or 0, tonumber(maxValue) or 100
         local value = math.clamp(tonumber(defaultValue) or mn, mn, mx)
         local row = Instance.new("Frame")
-        row.Size = UDim2.new(1, 0, 0, 54)
+        row.Size = UDim2.new(1, 0, 0, 46)
         row.BackgroundTransparency = 1
         row.Parent = parent
         local label = makeText(row, "", 20, false)
-        label.Size = UDim2.new(1, -88, 0, 20)
+        label.Size = UDim2.new(1, -82, 0, 18)
         local bar = Instance.new("Frame")
-        bar.Position = UDim2.fromOffset(0, 27)
-        bar.Size = UDim2.new(1, -88, 0, 7)
+        bar.Position = UDim2.fromOffset(0, 23)
+        bar.Size = UDim2.new(1, -82, 0, 6)
         bar.BackgroundColor3 = Color3.fromRGB(35, 22, 27)
         bar.BorderSizePixel = 0
         bar.Parent = row
@@ -3065,8 +3168,8 @@ local function BuildGUI()
         local fill = Instance.new("Frame")
         fill.Size=UDim2.new(0,0,1,0); fill.BackgroundColor3=Color3.fromRGB(185, 35, 50); fill.BorderSizePixel=0; fill.Parent=bar
         Instance.new("UICorner", fill).CornerRadius=UDim.new(1,0)
-        local minus = roundedButton(row,"−",30); minus.Size=UDim2.fromOffset(38,30); minus.Position=UDim2.new(1,-80,0,2); minus.TextXAlignment=Enum.TextXAlignment.Center
-        local plus = roundedButton(row,"+",30); plus.Size=UDim2.fromOffset(38,30); plus.Position=UDim2.new(1,-39,0,2); plus.TextXAlignment=Enum.TextXAlignment.Center
+        local minus = roundedButton(row,"ลด",28); minus.Size=UDim2.fromOffset(34,28); minus.Position=UDim2.new(1,-70,0,1); minus.TextXAlignment=Enum.TextXAlignment.Center
+        local plus = roundedButton(row,"เพิ่ม",28); plus.Size=UDim2.fromOffset(34,28); plus.Position=UDim2.new(1,-35,0,1); plus.TextXAlignment=Enum.TextXAlignment.Center
         local step=(mx-mn)/100
         if step<=0 then step=1 end
         local function set(v, fire)
@@ -3102,125 +3205,125 @@ local function BuildGUI()
         local c=makeText(box,text,34,false); c.Position=UDim2.fromOffset(10,28); c.Size=UDim2.new(1,-20,0,34); c.TextWrapped=true; c.TextTransparency=.3; c.TextYAlignment=Enum.TextYAlignment.Top
     end
 
-    local Eggs = createPage("Eggs")
-    local Base = createPage("Base")
-    local Combat = createPage("Combat")
-    local Player = createPage("Player")
-    local Settings = createPage("Settings")
-    for _, n in ipairs({"Eggs","Base","Combat","Player","Settings"}) do addSidebarTab(n) end
+    local Eggs = createPage("ไข่")
+    local Base = createPage("ฐาน")
+    local Combat = createPage("ต่อสู้")
+    local Player = createPage("ผู้เล่น")
+    local Settings = createPage("ตั้งค่า")
+    for _, n in ipairs({"ไข่","ฐาน","ต่อสู้","ผู้เล่น","ตั้งค่า"}) do addSidebarTab(n) end
 
     -- EGGS
-    section(Eggs,"AUTO STEAL")
-    addToggle(Eggs,"Auto Steal Eggs",false,safeCallback(function(v) autoStealEnabled=v; if v then EnsureSavedReturnPosition() end end))
-    addDropdown(Eggs,"Steal Movement Method",{"Tween Glide","Fly Glide","Safe Walk"},"Tween Glide",function(v) stealMovementMethod=v end)
-    addToggle(Eggs,"Rare Egg Hunter",true,function(v) rareEggHunter=v end)
-    addToggle(Eggs,"Big Eggs Only",false,function(v) stealBigEggsOnly=v end)
-    addMulti(Eggs,"Filter Rarity",RARITY_NAMES,function(v) selectedStealRarities=v end)
-    addMulti(Eggs,"Filter Area",AREA_NAMES,function(v) selectedStealAreas=v end)
-    addMulti(Eggs,"Filter Mutation",MUTATION_FILTERS,function(v) selectedMutationTypes=v end)
-    addSlider(Eggs,"Glide / Travel Speed",50,750,750," studs/s",function(v) glideSpeed=v end)
-    addSlider(Eggs,"Steal Delay Gap",.5,10,1.5,"s",function(v) stealDelay=v end)
-    addAction(Eggs,"Steal Best Available Egg Once",safeCallback(function() local ok=StealBestEggOnce(); Notify("Steal Egg",ok and "Target started" or "No matching egg","Info") end))
-    section(Eggs,"HATCH & PLANT")
-    addToggle(Eggs,"Auto Hatch Ready Eggs",false,function(v) autoHatchEnabled=v end)
-    addToggle(Eggs,"Auto Place Egg (Base Pen)",false,function(v) autoPlantEnabled=v end)
-    addSlider(Eggs,"Hatch Check Delay",.5,10,2,"s",function(v) hatchCheckDelay=v end)
-    addAction(Eggs,"Hatch All Ready Eggs Now",safeCallback(function() Notify("Hatch","Hatched "..HatchAllReadyEggs().." egg(s)","Success") end))
-    addAction(Eggs,"Place Carried Eggs in Pen Now",safeCallback(function() Notify("Plant","Planted "..PlantAllCarriedEggsInPen().." egg(s)","Success") end))
-    section(Eggs,"EGG ESP")
-    addToggle(Eggs,"Egg ESP Enabled",false,function(v) esp.enabled=v end)
-    addToggle(Eggs,"Show 3D Pet Image Badges",true,function(v) esp.showPetIcons=v end)
-    addToggle(Eggs,"Trap ESP",false,function(v) esp.traps=v end)
-    addToggle(Eggs,"Show Mutated / Rare Eggs Only",false,function(v) esp.rareEggsOnly=v end)
-    addSlider(Eggs,"Max ESP Distance",100,2500,800," studs",function(v) esp.maxDistance=v end)
+    section(Eggs,"ขโมยอัตโนมัติ")
+    addToggle(Eggs,"ขโมยไข่อัตโนมัติ",false,safeCallback(function(v) autoStealEnabled=v; if v then EnsureSavedReturnPosition() end end))
+    addDropdown(Eggs,"วิธีการเคลื่อนที่",{"Tween Glide","Fly Glide","Safe Walk"},"Tween Glide",function(v) stealMovementMethod=v end)
+    addToggle(Eggs,"ค้นหาไข่หายาก",true,function(v) rareEggHunter=v end)
+    addToggle(Eggs,"เฉพาะไข่ขนาดใหญ่",false,function(v) stealBigEggsOnly=v end)
+    addMulti(Eggs,"กรองความหายาก",RARITY_NAMES,function(v) selectedStealRarities=v end)
+    addMulti(Eggs,"กรองพื้นที่",AREA_NAMES,function(v) selectedStealAreas=v end)
+    addMulti(Eggs,"กรองการกลายพันธุ์",MUTATION_FILTERS,function(v) selectedMutationTypes=v end)
+    addSlider(Eggs,"ความเร็วเลื่อน / เดินทาง",50,750,750," หน่วย/วิ",function(v) glideSpeed=v end)
+    addSlider(Eggs,"ช่วงหน่วงการขโมย",.5,10,1.5," วินาที",function(v) stealDelay=v end)
+    addAction(Eggs,"ขโมยไข่ที่ดีที่สุดครั้งเดียว",safeCallback(function() local ok=StealBestEggOnce(); Notify("ขโมยไข่",ok and "เริ่มเป้าหมายแล้ว" or "ไม่พบไข่ที่ตรงเงื่อนไข","ข้อมูล") end))
+    section(Eggs,"ฟักไข่และวางไข่")
+    addToggle(Eggs,"ฟักไข่ที่พร้อมอัตโนมัติ",false,function(v) autoHatchEnabled=v end)
+    addToggle(Eggs,"วางไข่อัตโนมัติในคอกฐาน",false,function(v) autoPlantEnabled=v end)
+    addSlider(Eggs,"ช่วงตรวจสอบการฟัก",.5,10,2," วินาที",function(v) hatchCheckDelay=v end)
+    addAction(Eggs,"ฟักไข่ที่พร้อมทั้งหมดตอนนี้",safeCallback(function() Notify("ฟักไข่","ฟักแล้ว "..HatchAllReadyEggs().." ฟอง","สำเร็จ") end))
+    addAction(Eggs,"วางไข่ที่ถืออยู่ในคอกตอนนี้",safeCallback(function() Notify("วางไข่","วางแล้ว "..PlantAllCarriedEggsInPen().." ฟอง","สำเร็จ") end))
+    section(Eggs,"แสดงตำแหน่งไข่")
+    addToggle(Eggs,"เปิดแสดงตำแหน่งไข่",false,function(v) esp.enabled=v end)
+    addToggle(Eggs,"แสดงป้ายภาพสัตว์เลี้ยง 3 มิติ",true,function(v) esp.showPetIcons=v end)
+    addToggle(Eggs,"แสดงกับดัก",false,function(v) esp.traps=v end)
+    addToggle(Eggs,"แสดงเฉพาะไข่กลายพันธุ์และหายาก",false,function(v) esp.rareEggsOnly=v end)
+    addSlider(Eggs,"ระยะการแสดงผลสูงสุด",100,2500,800," หน่วย",function(v) esp.maxDistance=v end)
 
     -- BASE
-    section(Base,"HOMESTEAD & TREADMILL")
-    addToggle(Base,"Auto Upgrade Base / Plot",false,function(v) autoUpgradeBase=v end)
-    addToggle(Base,"Auto Upgrade Treadmill Tier",false,function(v) autoUpgradeTreadmill=v end)
-    addToggle(Base,"Auto Train Speed",false,function(v) autoTrainSpeed=v end)
-    addToggle(Base,"Auto Buy Speed Trails",false,function(v) autoBuyTrails=v end)
-    addAction(Base,"Upgrade Base Now",safeCallback(UpgradeHomesteadBase))
-    addAction(Base,"Upgrade Treadmill Now",safeCallback(UpgradeTreadmillTier))
-    addAction(Base,"Buy Affordable Speed Trails",safeCallback(BuyAffordableTrails))
-    section(Base,"PETS & SATCHEL")
-    addToggle(Base,"Auto Equip Best Pets",false,function(v) autoEquipBestPets=v end)
-    addAction(Base,"Equip Best Pets Now",safeCallback(EquipBestPets))
-    section(Base,"AUTO SELL")
-    addToggle(Base,"Auto Sell Low-Tier Pets",false,function(v) autoSellPets=v end)
-    addMulti(Base,"Filter Pet Sell Rarities",RARITY_NAMES,function(v) selectedSellPetRarities=v end)
-    addToggle(Base,"Auto Sell Low-Tier Eggs",false,function(v) autoSellEggs=v end)
-    addMulti(Base,"Filter Egg Sell Rarities",RARITY_NAMES,function(v) selectedSellEggRarities=v end)
-    addAction(Base,"Sell Selected Pets Now",safeCallback(SellSelectedPets))
-    addAction(Base,"Sell Selected Eggs Now",safeCallback(SellSelectedEggs))
-    section(Base,"EVENTS & BOSSES")
-    addToggle(Base,"FULL AUTO Boss Fight",false,function(v) Boss.autoFight=v; if v then Boss.autoJoin=true; Boss.autoMastery=true end end)
-    addDropdown(Base,"Boss Targeting",{"Crystals First","Boss First"},"Crystals First",function(v) Boss.arenaApproach=v end)
-    addToggle(Base,"Hazard Immunity",false,safeCallback(function(v) Boss.hazardImmune=v; if v then Boss.InstallHazardHook() end end))
-    addToggle(Base,"Auto Join Boss Arena",false,function(v) Boss.autoJoin=v end)
-    addToggle(Base,"Auto Claim Boss Mastery Rewards",false,function(v) Boss.autoMastery=v end)
-    addAction(Base,"Join Boss Arena Now",safeCallback(function() Notify("Boss Arena",Boss.Join() and "Join requested" or "Arena closed","Info") end))
-    addAction(Base,"Claim Boss Mastery Now",safeCallback(function() Notify("Boss Mastery","Claimed "..Boss.ClaimMastery().." reward(s)","Success") end))
-    addAction(Base,"Boss Arena Status",safeCallback(function() local x=Boss.Snapshot(); Notify("Boss Arena",x and (x.Open and "OPEN" or "CLOSED") or "Unavailable","Info") end))
-    section(Base,"REWARDS")
-    addToggle(Base,"Auto Claim Away Earnings & Codex",false,function(v) autoClaimRewards=v end)
-    addAction(Base,"Claim Away Earnings & Codex Now",safeCallback(ClaimAllAvailableRewards))
+    section(Base,"ฐานและลู่วิ่ง")
+    addToggle(Base,"อัปเกรดฐานและแปลงอัตโนมัติ",false,function(v) autoUpgradeBase=v end)
+    addToggle(Base,"อัปเกรดระดับลู่วิ่งอัตโนมัติ",false,function(v) autoUpgradeTreadmill=v end)
+    addToggle(Base,"ฝึกความเร็วอัตโนมัติ",false,function(v) autoTrainSpeed=v end)
+    addToggle(Base,"ซื้อรางความเร็วอัตโนมัติ",false,function(v) autoBuyTrails=v end)
+    addAction(Base,"อัปเกรดฐานตอนนี้",safeCallback(UpgradeHomesteadBase))
+    addAction(Base,"อัปเกรดลู่วิ่งตอนนี้",safeCallback(UpgradeTreadmillTier))
+    addAction(Base,"ซื้อรางความเร็วที่ซื้อได้",safeCallback(BuyAffordableTrails))
+    section(Base,"สัตว์เลี้ยงและกระเป๋า")
+    addToggle(Base,"สวมใส่สัตว์เลี้ยงที่ดีที่สุดอัตโนมัติ",false,function(v) autoEquipBestPets=v end)
+    addAction(Base,"สวมใส่สัตว์เลี้ยงที่ดีที่สุดตอนนี้",safeCallback(EquipBestPets))
+    section(Base,"ขายอัตโนมัติ")
+    addToggle(Base,"ขายสัตว์เลี้ยงระดับต่ำอัตโนมัติ",false,function(v) autoSellPets=v end)
+    addMulti(Base,"เลือกความหายากของสัตว์เลี้ยง",RARITY_NAMES,function(v) selectedSellPetRarities=v end)
+    addToggle(Base,"ขายไข่ระดับต่ำอัตโนมัติ",false,function(v) autoSellEggs=v end)
+    addMulti(Base,"เลือกความหายากของไข่",RARITY_NAMES,function(v) selectedSellEggRarities=v end)
+    addAction(Base,"ขายสัตว์เลี้ยงที่เลือกตอนนี้",safeCallback(SellSelectedPets))
+    addAction(Base,"ขายไข่ที่เลือกตอนนี้",safeCallback(SellSelectedEggs))
+    section(Base,"อีเวนต์และบอส")
+    addToggle(Base,"ต่อสู้บอสอัตโนมัติเต็มรูปแบบ",false,function(v) Boss.autoFight=v; if v then Boss.autoJoin=true; Boss.autoMastery=true end end)
+    addDropdown(Base,"การเลือกเป้าหมายบอส",{"Crystals First","Boss First"},"Crystals First",function(v) Boss.arenaApproach=v end)
+    addToggle(Base,"ป้องกันอันตราย",false,safeCallback(function(v) Boss.hazardImmune=v; if v then Boss.InstallHazardHook() end end))
+    addToggle(Base,"เข้าร่วมสนามบอสอัตโนมัติ",false,function(v) Boss.autoJoin=v end)
+    addToggle(Base,"รับรางวัลความชำนาญบอสอัตโนมัติ",false,function(v) Boss.autoMastery=v end)
+    addAction(Base,"เข้าสนามบอสตอนนี้",safeCallback(function() Notify("สนามบอส",Boss.Join() and "ส่งคำขอเข้าร่วมแล้ว" or "สนามปิดอยู่","ข้อมูล") end))
+    addAction(Base,"รับรางวัลความชำนาญบอสตอนนี้",safeCallback(function() Notify("ความชำนาญบอส","รับแล้ว "..Boss.ClaimMastery().." รางวัล","สำเร็จ") end))
+    addAction(Base,"สถานะสนามบอส",safeCallback(function() local x=Boss.Snapshot(); Notify("สนามบอส",x and (x.Open and "เปิด" or "ปิด") or "ไม่พร้อมใช้งาน","ข้อมูล") end))
+    section(Base,"รางวัล")
+    addToggle(Base,"รับรายได้ขณะไม่อยู่และ Codex อัตโนมัติ",false,function(v) autoClaimRewards=v end)
+    addAction(Base,"รับรายได้ขณะไม่อยู่และ Codex ตอนนี้",safeCallback(ClaimAllAvailableRewards))
 
     -- COMBAT
-    section(Combat,"BAT & SLAP AURA")
-    addToggle(Combat,"Bat / Slap Aura",false,function(v) batAuraEnabled=v end)
-    addSlider(Combat,"Aura Radius",5,50,20," studs",function(v) batAuraRadius=v end)
-    addSlider(Combat,"Swing Delay",.05,1,.2,"s",function(v) batAuraDelay=v end)
-    addAction(Combat,"Swing Bat Once",safeCallback(function() local r=GetNetRemote("RE/BatSwing/Trigger"); if r then r:FireServer() end end))
-    section(Combat,"DEFENSE & GUARDS")
-    addToggle(Combat,"Anti-Trap",true,function(v) avoidTrapsEnabled=v; if v then pcall(NeutralizeTraps) end end)
-    addToggle(Combat,"No Knockback / Ragdoll",true,function(v) SetNoKnockback(v) end)
-    addToggle(Combat,"Anti-Ragdoll",true,function(v) antiRagdollEnabled=v end)
+    section(Combat,"ออร่าตีไม้และตบ")
+    addToggle(Combat,"ออร่าตีไม้และตบ",false,function(v) batAuraEnabled=v end)
+    addSlider(Combat,"รัศมีออร่า",5,50,20," หน่วย",function(v) batAuraRadius=v end)
+    addSlider(Combat,"ช่วงหน่วงการตี",.05,1,.2," วินาที",function(v) batAuraDelay=v end)
+    addAction(Combat,"ตีไม้หนึ่งครั้ง",safeCallback(function() local r=GetNetRemote("RE/BatSwing/Trigger"); if r then r:FireServer() end end))
+    section(Combat,"ป้องกันและการ์ด")
+    addToggle(Combat,"ป้องกันกับดัก",true,function(v) avoidTrapsEnabled=v; if v then pcall(NeutralizeTraps) end end)
+    addToggle(Combat,"ป้องกันการกระเด็นและล้ม",true,function(v) SetNoKnockback(v) end)
+    addToggle(Combat,"ป้องกันการล้ม",true,SetAntiRagdoll)
 
     -- PLAYER
-    section(Player,"MOVEMENT")
-    addToggle(Player,"Enable WalkSpeed",false,function(v) walkSpeedEnabled=v; if not v then local h=findHum(); if h then h.WalkSpeed=16 end end end)
-    addSlider(Player,"WalkSpeed Value",16,10000,24," studs/s",function(v) ApplyWalkSpeed(v) end)
-    addToggle(Player,"Enable JumpPower",false,function(v) jumpPowerEnabled=v; if v then ApplyJumpPower(jumpPowerVal) end end)
-    addSlider(Player,"JumpPower Value",50,300,60,"",function(v) ApplyJumpPower(v) end)
-    addToggle(Player,"Infinite Jump",false,function(v) infiniteJump=v end)
-    addToggle(Player,"Smooth Fly",false,function(v) if v then startFly() else stopFly() end end)
-    addSlider(Player,"Fly Speed",20,250,60," studs/s",function(v) flySpeed=v end)
-    addToggle(Player,"Anti-AFK",false,SetAntiAFK)
-    section(Player,"AREA TRAVEL")
+    section(Player,"การเคลื่อนที่")
+    addToggle(Player,"เปิดใช้ความเร็วเดิน",false,function(v) walkSpeedEnabled=v; if not v then local h=findHum(); if h then h.WalkSpeed=16 end end end)
+    addSlider(Player,"ค่าความเร็วเดิน",16,10000,24," หน่วย/วิ",function(v) ApplyWalkSpeed(v) end)
+    addToggle(Player,"เปิดใช้พลังการกระโดด",false,function(v) jumpPowerEnabled=v; if v then ApplyJumpPower(jumpPowerVal) end end)
+    addSlider(Player,"ค่าพลังการกระโดด",50,300,60,"",function(v) ApplyJumpPower(v) end)
+    addToggle(Player,"กระโดดไม่จำกัด",false,function(v) infiniteJump=v end)
+    addToggle(Player,"บินแบบนุ่มนวล",false,function(v) if v then startFly() else stopFly() end end)
+    addSlider(Player,"ความเร็วบิน",20,250,60," หน่วย/วิ",function(v) flySpeed=v end)
+    addToggle(Player,"ป้องกันการหยุดนิ่ง",false,SetAntiAFK)
+    section(Player,"เดินทางไปพื้นที่")
     local areaKeys={}; for k in pairs(AREA_COORDINATES) do table.insert(areaKeys,k) end; table.sort(areaKeys)
     local selectedAreaTp="Base / Plot"
-    addDropdown(Player,"Select Area",areaKeys,selectedAreaTp,function(v) selectedAreaTp=v end)
-    addAction(Player,"Travel to Selected Area",safeCallback(function() local pos=AREA_COORDINATES[selectedAreaTp]; if selectedAreaTp=="Base / Plot" then pos=GetLocalPlotCenter() end; if pos then TravelToDestination(typeof(pos)=="CFrame" and pos.Position or pos,glideSpeed,false) end end))
-    section(Player,"PLOT TRAVEL")
-    local selectedPlotNum="My Plot"
-    local plotOptions={"Plot 1","Plot 2","Plot 3","Plot 4","Plot 5","Plot 6","Plot 7","My Plot"}
-    addDropdown(Player,"Select Plot",plotOptions,selectedPlotNum,function(v) selectedPlotNum=v end)
-    addAction(Player,"Travel to Plot",safeCallback(function() local n=selectedPlotNum=="My Plot" and GetLocalSlot() or tonumber(tostring(selectedPlotNum):match("%d+")) or 1; local plots=Workspace:FindFirstChild("Plots"); local pl=plots and plots:FindFirstChild(tostring(n)); local pos=pl and (pl:FindFirstChild("CenterPoint") and pl.CenterPoint.Position or pl:GetPivot().Position); if pos then TravelToDestination(pos+Vector3.new(0,2,0),glideSpeed,false) end end))
-    section(Player,"PLAYER TRAVEL")
+    addDropdown(Player,"เลือกพื้นที่",areaKeys,selectedAreaTp,function(v) selectedAreaTp=v end)
+    addAction(Player,"เดินทางไปพื้นที่ที่เลือก",safeCallback(function() local pos=AREA_COORDINATES[selectedAreaTp]; if selectedAreaTp=="Base / Plot" then pos=GetLocalPlotCenter() end; if pos then TravelToDestination(typeof(pos)=="CFrame" and pos.Position or pos,glideSpeed,false) end end))
+    section(Player,"เดินทางไปแปลง")
+    local selectedPlotNum="แปลงของฉัน"
+    local plotOptions={"แปลง 1","แปลง 2","แปลง 3","แปลง 4","แปลง 5","แปลง 6","แปลง 7","แปลงของฉัน"}
+    addDropdown(Player,"เลือกแปลง",plotOptions,selectedPlotNum,function(v) selectedPlotNum=v end)
+    addAction(Player,"เดินทางไปแปลง",safeCallback(function() local n=selectedPlotNum=="แปลงของฉัน" and GetLocalSlot() or tonumber(tostring(selectedPlotNum):match("%d+")) or 1; local plots=Workspace:FindFirstChild("Plots"); local pl=plots and plots:FindFirstChild(tostring(n)); local pos=pl and (pl:FindFirstChild("CenterPoint") and pl.CenterPoint.Position or pl:GetPivot().Position); if pos then TravelToDestination(pos+Vector3.new(0,2,0),glideSpeed,false) end end))
+    section(Player,"เดินทางไปผู้เล่น")
     local selectedPlayerName=nil
-    local function playerList() local x={}; for _,pl in ipairs(Players:GetPlayers()) do if pl~=LP then table.insert(x,pl.Name) end end; table.sort(x); if #x==0 then x={"(no other players)"} end; return x end
-    local playerSelect=addDropdown(Player,"Select Player",playerList(),nil,function(v) selectedPlayerName=v end)
-    addAction(Player,"Refresh Player List",function() playerSelect.SetOptions(playerList()) end)
-    addAction(Player,"Travel to Player",safeCallback(function() if not selectedPlayerName then return end; local pl=Players:FindFirstChild(selectedPlayerName); local r=pl and pl.Character and pl.Character:FindFirstChild("HumanoidRootPart"); if r then TravelToDestination(r.Position+Vector3.new(0,2,0),glideSpeed,false) end end))
-    section(Player,"VISUALS & PERFORMANCE")
-    addToggle(Player,"Fullbright",false,SetFullbright)
-    addAction(Player,"Delete Own Pet Renders (FPS Boost)",safeCallback(function() Notify("Performance","Removed "..DeleteOwnPetRenders().." model(s)","Success") end))
+    local function playerList() local x={}; for _,pl in ipairs(Players:GetPlayers()) do if pl~=LP then table.insert(x,pl.Name) end end; table.sort(x); if #x==0 then x={"(ไม่มีผู้เล่นคนอื่น)"} end; return x end
+    local playerSelect=addDropdown(Player,"เลือกผู้เล่น",playerList(),nil,function(v) selectedPlayerName=v end)
+    addAction(Player,"รีเฟรชรายชื่อผู้เล่น",function() playerSelect.SetOptions(playerList()) end)
+    addAction(Player,"เดินทางไปหาผู้เล่น",safeCallback(function() if not selectedPlayerName then return end; local pl=Players:FindFirstChild(selectedPlayerName); local r=pl and pl.Character and pl.Character:FindFirstChild("HumanoidRootPart"); if r then TravelToDestination(r.Position+Vector3.new(0,2,0),glideSpeed,false) end end))
+    section(Player,"ภาพและประสิทธิภาพ")
+    addToggle(Player,"สว่างเต็มที่",false,SetFullbright)
+    addAction(Player,"ลบภาพสัตว์เลี้ยงของฉันเพื่อเพิ่มประสิทธิภาพ",safeCallback(function() Notify("ประสิทธิภาพ","ลบแล้ว "..DeleteOwnPetRenders().." โมเดล","สำเร็จ") end))
 
     -- SETTINGS
-    section(Settings,"CONTROLS")
-    addAction(Settings,"Hide / Show Menu",function() main.Visible=not main.Visible end)
-    addAction(Settings,"Unload / Stop Everything",function() if State.Unload then State.Unload() end end)
-    addInfo(Settings,"SPEENO","Custom Roblox GUI • left sidebar • touch/mouse • compact layout")
+    section(Settings,"การควบคุม")
+    addAction(Settings,"ซ่อน / แสดงเมนู",function() main.Visible=not main.Visible; if mini then mini.Visible=not main.Visible end end)
+    addAction(Settings,"ปิดสคริปต์ / หยุดทั้งหมด",function() if State.Unload then State.Unload() end end)
+    addInfo(Settings,"เมนูหลัก","เมนูควบคุมแบบกำหนดเอง แถบด้านซ้าย รองรับการสัมผัสและเมาส์ ขนาดกะทัดรัด")
 
     -- MINIMIZED MODE: a small movable menu button, not the old GUI.
-    local mini = Instance.new("TextButton")
+    mini = Instance.new("TextButton")
     mini.Name = "MiniMenu"
-    mini.Size = UDim2.fromOffset(122, 38)
-    mini.Position = UDim2.new(0, 14, 0.5, -19)
+    mini.Size = UDim2.fromOffset(108, 34)
+    mini.Position = UDim2.new(0, 10, 0.5, -17)
     mini.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
     mini.BorderSizePixel = 0
-    mini.Text = "SPEENO  •  OPEN"
+    mini.Text = "เปิดเมนู"
     mini.Font = Enum.Font.GothamBold
     mini.TextSize = 11
     mini.Visible = false
@@ -3306,7 +3409,7 @@ local function BuildGUI()
     -- Close button stops the script through the same cleanup path.
     close.Activated:Connect(function() if State.Unload then State.Unload() else screen:Destroy() end end)
 
-    showPage("Eggs")
+    showPage("ไข่")
     pcall(function() if BootstrapGui then BootstrapGui:Destroy() end end)
     BootstrapGui = nil
 end
@@ -3347,4 +3450,4 @@ State.Unload = function()
     end)
 end
 
-Notify("SPEENO", "Custom GUI loaded successfully", "Success", 3.5)
+Notify("เมนูหลัก", "โหลด GUI แบบกำหนดเองสำเร็จ", "Success", 3.5)
