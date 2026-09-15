@@ -2560,22 +2560,41 @@ end
 -- No external UI library / no old UI system / no old tab or button objects.
 -- ===============================================================================
 do
-    local PlayerGui = LP:WaitForChild("PlayerGui")
+    -- Use the most reliable GUI container available in executors, then fall back
+    -- to PlayerGui for normal LocalScript execution.
+    local guiParent
+    pcall(function()
+        if typeof(gethui) == "function" then
+            guiParent = gethui()
+        end
+    end)
+    if not guiParent then
+        pcall(function() guiParent = game:GetService("CoreGui") end)
+    end
+    if not guiParent then
+        guiParent = LP:WaitForChild("PlayerGui")
+    end
 
-    local old = PlayerGui:FindFirstChild("SPEENO_CUSTOM_GUI")
+    local old = guiParent:FindFirstChild("SPEENO_CUSTOM_GUI")
     if old then old:Destroy() end
 
     local screen = Instance.new("ScreenGui")
     screen.Name = "SPEENO_CUSTOM_GUI"
     screen.ResetOnSpawn = false
     screen.IgnoreGuiInset = true
+    screen.DisplayOrder = 999999
     screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    screen.Parent = PlayerGui
+    screen.Enabled = true
+    screen.Parent = guiParent
 
     local main = Instance.new("Frame")
     main.Name = "Main"
-    main.Size = UDim2.fromOffset(610, 390)
-    main.Position = UDim2.new(0.5, -305, 0.5, -195)
+    local camera = Workspace.CurrentCamera
+    local viewport = camera and camera.ViewportSize or Vector2.new(800, 600)
+    local mainW = math.min(610, math.max(300, viewport.X - 20))
+    local mainH = math.min(390, math.max(280, viewport.Y - 20))
+    main.Size = UDim2.fromOffset(mainW, mainH)
+    main.Position = UDim2.new(0.5, -mainW / 2, 0.5, -mainH / 2)
     main.BackgroundColor3 = Color3.fromRGB(16, 17, 21)
     main.BorderSizePixel = 0
     main.Parent = screen
@@ -2645,7 +2664,7 @@ do
     -- LEFT SIDEBAR: independently scrollable and touch friendly.
     local sidebar = Instance.new("ScrollingFrame")
     sidebar.Name = "Sidebar"
-    sidebar.Size = UDim2.fromOffset(132, 330)
+    sidebar.Size = UDim2.new(0, math.min(132, math.max(92, mainW * 0.23)), 1, 0)
     sidebar.Position = UDim2.fromOffset(0, 0)
     sidebar.BackgroundColor3 = Color3.fromRGB(20, 21, 26)
     sidebar.BorderSizePixel = 0
@@ -2667,8 +2686,9 @@ do
     -- RIGHT CONTENT: one page at a time, independently scrollable.
     local content = Instance.new("Frame")
     content.Name = "Content"
-    content.Position = UDim2.fromOffset(140, 0)
-    content.Size = UDim2.new(1, -140, 1, 0)
+    local sideWidth = sidebar.Size.X.Offset
+    content.Position = UDim2.fromOffset(sideWidth + 8, 0)
+    content.Size = UDim2.new(1, -(sideWidth + 8), 1, 0)
     content.BackgroundColor3 = Color3.fromRGB(19, 20, 25)
     content.BorderSizePixel = 0
     content.Parent = body
