@@ -91,12 +91,21 @@ pcall(function()
 end)
 
 local function Notify(title, content, kind, dur)
-    if GUI and GUI.Notify then GUI:Notify(title, content, kind, dur) end
-end
-local function safeCallback(fn)
-    return function(...) local ok,err=pcall(fn,...); if not ok then Notify("เมนูหลัก","ข้อผิดพลาด: "..tostring(err),"ข้อผิดพลาด",4) end end
+    pcall(function()
+        if GUI and GUI.Notify then GUI:Notify(title, content, kind, dur) end
+    end)
 end
 
+local function safeCallback(fn)
+    return function(...)
+        local ok, err = pcall(fn, ...)
+        if not ok then
+            pcall(Notify, "Speedno State", "Error: " .. tostring(err), "Error", 4)
+        end
+    end
+end
+
+-- ==============================================================================
 -- CLIENT AC NEUTRALIZER & UGI CONSTANT WIPER (Layer 1 + Layer 2)
 -- ==============================================================================
 local function bypassClientDetections()
@@ -290,24 +299,7 @@ end
 -- ==============================================================================
 -- BAC TELEMETRY PACKET SPOOFER
 -- ==============================================================================
-local bxor
-if type(bit32) == "table" and type(bit32.bxor) == "function" then
-    bxor = bit32.bxor
-else
-    bxor = function(a, b)
-        a = math.floor(tonumber(a) or 0)
-        b = math.floor(tonumber(b) or 0)
-        local out, bit = 0, 1
-        for _ = 1, 32 do
-            if (a % 2) ~= (b % 2) then out = out + bit end
-            a = math.floor(a / 2)
-            b = math.floor(b / 2)
-            bit = bit * 2
-            if a == 0 and b == 0 then break end
-        end
-        return out
-    end
-end
+local bxor = bit32.bxor
 local unpack = table.unpack
 
 local function isGuid(n)
@@ -439,39 +431,37 @@ end
 local HookFn = hookfunction or replaceclosure or hookfunc or detour_function
 
 if anyRemote and HookFn then
-    pcall(function()
-        local oldFire
-        oldFire = HookFn(anyRemote.FireServer, function(self, ...)
-            local args = table.pack(...)
-            if not remoteSet[self] then
-                return oldFire(self, unpack(args, 1, args.n))
-            end
-
-            local a1 = args[1]
-
-            if type(a1) == "string" and #a1 == 12 then
-                if not model then
-                    model = learn(self, a1, args[2])
-                else
-                    local c = parseCounter(rawget(model.state, model.map.marker))
-                    if c and encode(model, c) ~= a1 then
-                        local m = learn(self, a1, args[2])
-                        if m then m.spoofed = model.spoofed; model = m end
-                    end
-                end
-                return oldFire(self, unpack(args, 1, args.n))
-            end
-
-            if model and type(a1) == "string" and #a1 == 4 then
-                local c = liveCounter(model)
-                args[1] = encode(model, c)
-                args[2] = refreshArg2(model)
-                model.spoofed = (model.spoofed or 0) + 1
-                return oldFire(self, unpack(args, 1, math.max(args.n, 2)))
-            end
-
+    local oldFire
+    oldFire = HookFn(anyRemote.FireServer, function(self, ...)
+        local args = table.pack(...)
+        if not remoteSet[self] then
             return oldFire(self, unpack(args, 1, args.n))
-        end)
+        end
+
+        local a1 = args[1]
+
+        if type(a1) == "string" and #a1 == 12 then
+            if not model then
+                model = learn(self, a1, args[2])
+            else
+                local c = parseCounter(rawget(model.state, model.map.marker))
+                if c and encode(model, c) ~= a1 then
+                    local m = learn(self, a1, args[2])
+                    if m then m.spoofed = model.spoofed; model = m end
+                end
+            end
+            return oldFire(self, unpack(args, 1, args.n))
+        end
+
+        if model and type(a1) == "string" and #a1 == 4 then
+            local c = liveCounter(model)
+            args[1] = encode(model, c)
+            args[2] = refreshArg2(model)
+            model.spoofed = (model.spoofed or 0) + 1
+            return oldFire(self, unpack(args, 1, math.max(args.n, 2)))
+        end
+
+        return oldFire(self, unpack(args, 1, args.n))
     end)
 end
 
@@ -564,7 +554,6 @@ task.spawn(function()
         task.wait(0.2)
     end
 end)
-
 
 -- ==============================================================================
 -- GAME NETWORKING & MODULE INTEGRATION
@@ -1670,7 +1659,7 @@ Boss.Data = nil
 Boss.MasteryData = nil
 
 -- Loaded on first use instead of at script load: keeps the startup path of this
--- HUB free of anything device specific (phones were crashing at execute time).
+-- State free of anything device specific (phones were crashing at execute time).
 function Boss.EnsureData()
     if Boss._dataTried then return end
     Boss._dataTried = true
@@ -2612,6 +2601,17 @@ end
 
 -- ==============================================================================
 
+-- Helper restored from the original function set.
+local function GetPlayerList()
+    local names = {}
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP then table.insert(names, p.Name) end
+    end
+    table.sort(names)
+    if #names == 0 then names = { "(ไม่มีผู้เล่นคนอื่น)" } end
+    return names
+end
+
 -- CUSTOM GUI - BUILT DIRECTLY WITH ROBLOX INSTANCES
 -- No external UI library / no old UI system / no old tab or button objects.
 -- The whole builder lives in its own function to avoid Luau's 200-local limit
@@ -3075,7 +3075,7 @@ local function BuildGUI()
                 value = option
                 refresh()
                 closePopup(popup)
-                task.spawn(function() pcall(callback, value) end)
+                pcall(callback, value)
             end)
         end
         for _, option in ipairs(options) do addOption(option) end
@@ -3089,7 +3089,7 @@ local function BuildGUI()
             Set = function(v)
                 value = v
                 refresh()
-                task.spawn(function() pcall(callback, value) end)
+                pcall(callback, value)
             end,
             SetOptions = function(newOptions)
                 closePopup(popup)
@@ -3158,7 +3158,7 @@ local function BuildGUI()
         local function emit()
             local copy = {}
             for k, v in pairs(selected) do copy[k] = v end
-            task.spawn(function() pcall(callback, copy) end)
+            pcall(callback, copy)
         end
 
         local function addOption(option)
