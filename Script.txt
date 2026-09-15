@@ -52,7 +52,7 @@ pcall(function()
     f.Size = UDim2.fromOffset(220, 44)
     f.BackgroundColor3 = Color3.fromRGB(16, 17, 21)
     f.BorderSizePixel = 0
-    f.Text = "SPEENO HUB  •  กำลังโหลด..."
+    f.Text = "กำลังโหลด"
     f.Font = Enum.Font.GothamBold
     f.TextSize = 13
     f.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -94,7 +94,7 @@ local function Notify(title, content, kind, dur)
     if GUI and GUI.Notify then GUI:Notify(title, content, kind, dur) end
 end
 local function safeCallback(fn)
-    return function(...) local ok,err=pcall(fn,...); if not ok then Notify("SPEENO","ข้อผิดพลาด: "..tostring(err),"ข้อผิดพลาด",4) end end
+    return function(...) local ok,err=pcall(fn,...); if not ok then Notify("เมนูหลัก","ข้อผิดพลาด: "..tostring(err),"ข้อผิดพลาด",4) end end
 end
 
 -- CLIENT AC NEUTRALIZER & UGI CONSTANT WIPER (Layer 1 + Layer 2)
@@ -2661,7 +2661,7 @@ local function BuildGUI()
                 n.Size = UDim2.fromOffset(250, 42)
                 n.BackgroundColor3 = Color3.fromRGB(28, 30, 37)
                 n.BorderSizePixel = 0
-                n.Text = tostring(titleText or "SPEENO") .. "\n" .. tostring(contentText or "")
+                n.Text = tostring(titleText or "เมนูหลัก") .. "\n" .. tostring(contentText or "")
                 n.Font = Enum.Font.GothamSemibold
                 n.TextSize = 10
                 n.TextWrapped = true
@@ -2702,8 +2702,8 @@ local function BuildGUI()
     main.Name = "Main"
     local camera = Workspace.CurrentCamera
     local viewport = camera and camera.ViewportSize or Vector2.new(800, 600)
-    local mainW = math.min(520, math.max(280, viewport.X - 16))
-    local mainH = math.min(330, math.max(240, viewport.Y - 16))
+    local mainW = math.min(480, math.max(270, viewport.X - 16))
+    local mainH = math.min(310, math.max(230, viewport.Y - 16))
     main.Size = UDim2.fromOffset(mainW, mainH)
     main.Position = UDim2.new(0.5, -mainW / 2, 0.5, -mainH / 2)
     main.BackgroundColor3 = Color3.fromRGB(10, 10, 13)
@@ -2729,7 +2729,7 @@ local function BuildGUI()
     title.BackgroundTransparency = 1
     title.Position = UDim2.fromOffset(11, 4)
     title.Size = UDim2.new(1, -95, 0, 20)
-    title.Text = "SPEENO"
+    title.Text = "เมนูหลัก"
     title.Font = Enum.Font.GothamBold
     title.TextSize = 15
     title.TextColor3 = TEXT
@@ -2751,7 +2751,7 @@ local function BuildGUI()
     local minimize = Instance.new("TextButton")
     minimize.Size = UDim2.fromOffset(32, 30)
     minimize.Position = UDim2.new(1, -72, 0, 8)
-    minimize.Text = "—"
+    minimize.Text = "ย่อ"
     minimize.Font = Enum.Font.GothamBold
     minimize.TextSize = 18
     minimize.BackgroundColor3 = Color3.fromRGB(29, 20, 24)
@@ -2763,7 +2763,7 @@ local function BuildGUI()
     local close = Instance.new("TextButton")
     close.Size = UDim2.fromOffset(32, 30)
     close.Position = UDim2.new(1, -36, 0, 8)
-    close.Text = "×"
+    close.Text = "ปิด"
     close.Font = Enum.Font.GothamBold
     close.TextSize = 18
     close.BackgroundColor3 = Color3.fromRGB(29, 20, 24)
@@ -2908,30 +2908,28 @@ local function BuildGUI()
     local function addToggle(parent, name, default, callback)
         local value = default == true
         local b = roundedButton(parent, "", 32)
-        local function refresh()
-            b.Text = name .. "    [" .. (value and "เปิด" or "ปิด") .. "]"
-            b.BackgroundColor3 = value and Color3.fromRGB(78, 20, 29) or Color3.fromRGB(25, 25, 31)
-        end
         local busy = false
-        b.Activated:Connect(function()
-            if busy then return end
+        local function refresh()
+            b.Text = name .. "  " .. (value and "ปิด" or "เปิด")
+            b.BackgroundColor3 = value and Color3.fromRGB(78, 20, 29) or Color3.fromRGB(25, 25, 31)
+            b.TextColor3 = value and TEXT or MUTED
+        end
+        local function apply(nextValue)
+            if busy then return false end
             busy = true
-            value = not value
+            value = nextValue == true
             refresh()
-            task.spawn(function()
-                pcall(callback, value)
-                task.wait(0.08)
-                busy = false
-            end)
+            local ok = pcall(callback, value)
+            busy = false
+            return ok
+        end
+        b.Activated:Connect(function()
+            apply(not value)
         end)
         refresh()
         return {
             Get = function() return value end,
-            Set = function(v)
-                value = v == true
-                refresh()
-                pcall(callback, value)
-            end,
+            Set = function(v) apply(v) end,
         }
     end
 
@@ -2969,7 +2967,7 @@ local function BuildGUI()
             ["SuperRare"] = "หายากมาก", ["Uncommon"] = "ไม่ธรรมดา", ["Common"] = "ทั่วไป",
             ["Normal Only"] = "เฉพาะปกติ", ["Mutated Only"] = "เฉพาะกลายพันธุ์", ["Parasite / Infested"] = "ปรสิต / ติดเชื้อ",
             ["Rainbow Only"] = "เฉพาะสายรุ้ง", ["Gold Only"] = "เฉพาะทอง", ["Silver Only"] = "เฉพาะเงิน", ["Monstrous"] = "อสูร",
-            ["Base / Plot"] = "ฐาน / แปลง",
+            ["Base / Plot"] = "ฐานและแปลง",
             ["Plot 1"] = "แปลง 1", ["Plot 2"] = "แปลง 2", ["Plot 3"] = "แปลง 3", ["Plot 4"] = "แปลง 4",
             ["Plot 5"] = "แปลง 5", ["Plot 6"] = "แปลง 6", ["Plot 7"] = "แปลง 7", ["My Plot"] = "แปลงของฉัน",
         }
@@ -3010,7 +3008,7 @@ local function BuildGUI()
         pp.PaddingTop = UDim.new(0, 5); pp.PaddingBottom = UDim.new(0, 5); pp.PaddingLeft = UDim.new(0, 5); pp.PaddingRight = UDim.new(0, 5)
 
         local function refresh()
-            mainBtn.Text = name .. ": " .. displayOption(value or "ไม่มี") .. "   ▾"
+            mainBtn.Text = name .. " " .. displayOption(value or "ไม่มี") .. ""
         end
         for _, option in ipairs(options) do
             local ob = roundedButton(popScroll, displayOption(option), 28)
@@ -3084,12 +3082,12 @@ local function BuildGUI()
             for _, option in ipairs(options) do if selected[option] then table.insert(out, displayOption(option)) end end
             local text = (#out > 0) and table.concat(out, ", ") or "ไม่มี"
             if #text > 45 then text = text:sub(1,42) .. "..." end
-            mainBtn.Text = name .. ": " .. text .. "   ▾"
+            mainBtn.Text = name .. " " .. text .. ""
         end
         local function emit() pcall(callback, selected) end
         for _, option in ipairs(options) do
             local ob = roundedButton(sc, "", 28); ob.ZIndex=22
-            local function rr() ob.Text = (selected[option] and "✓ " or "□ ") .. displayOption(option) end
+            local function rr() ob.Text = (selected[option] and "เลือก " or "ไม่เลือก ") .. displayOption(option) end
             local busy = false
             ob.Activated:Connect(function()
                 if busy then return end
@@ -3125,8 +3123,8 @@ local function BuildGUI()
         local fill = Instance.new("Frame")
         fill.Size=UDim2.new(0,0,1,0); fill.BackgroundColor3=Color3.fromRGB(185, 35, 50); fill.BorderSizePixel=0; fill.Parent=bar
         Instance.new("UICorner", fill).CornerRadius=UDim.new(1,0)
-        local minus = roundedButton(row,"−",28); minus.Size=UDim2.fromOffset(34,28); minus.Position=UDim2.new(1,-70,0,1); minus.TextXAlignment=Enum.TextXAlignment.Center
-        local plus = roundedButton(row,"+",28); plus.Size=UDim2.fromOffset(34,28); plus.Position=UDim2.new(1,-35,0,1); plus.TextXAlignment=Enum.TextXAlignment.Center
+        local minus = roundedButton(row,"ลด",28); minus.Size=UDim2.fromOffset(34,28); minus.Position=UDim2.new(1,-70,0,1); minus.TextXAlignment=Enum.TextXAlignment.Center
+        local plus = roundedButton(row,"เพิ่ม",28); plus.Size=UDim2.fromOffset(34,28); plus.Position=UDim2.new(1,-35,0,1); plus.TextXAlignment=Enum.TextXAlignment.Center
         local step=(mx-mn)/100
         if step<=0 then step=1 end
         local function set(v, fire)
@@ -3183,7 +3181,7 @@ local function BuildGUI()
     addAction(Eggs,"ขโมยไข่ที่ดีที่สุดครั้งเดียว",safeCallback(function() local ok=StealBestEggOnce(); Notify("ขโมยไข่",ok and "เริ่มเป้าหมายแล้ว" or "ไม่พบไข่ที่ตรงเงื่อนไข","ข้อมูล") end))
     section(Eggs,"ฟักไข่และวางไข่")
     addToggle(Eggs,"ฟักไข่ที่พร้อมอัตโนมัติ",false,function(v) autoHatchEnabled=v end)
-    addToggle(Eggs,"วางไข่อัตโนมัติ (คอกฐาน)",false,function(v) autoPlantEnabled=v end)
+    addToggle(Eggs,"วางไข่อัตโนมัติในคอกฐาน",false,function(v) autoPlantEnabled=v end)
     addSlider(Eggs,"ช่วงตรวจสอบการฟัก",.5,10,2," วินาที",function(v) hatchCheckDelay=v end)
     addAction(Eggs,"ฟักไข่ที่พร้อมทั้งหมดตอนนี้",safeCallback(function() Notify("ฟักไข่","ฟักแล้ว "..HatchAllReadyEggs().." ฟอง","สำเร็จ") end))
     addAction(Eggs,"วางไข่ที่ถืออยู่ในคอกตอนนี้",safeCallback(function() Notify("วางไข่","วางแล้ว "..PlantAllCarriedEggsInPen().." ฟอง","สำเร็จ") end))
@@ -3191,12 +3189,12 @@ local function BuildGUI()
     addToggle(Eggs,"เปิดแสดงตำแหน่งไข่",false,function(v) esp.enabled=v end)
     addToggle(Eggs,"แสดงป้ายภาพสัตว์เลี้ยง 3 มิติ",true,function(v) esp.showPetIcons=v end)
     addToggle(Eggs,"แสดงกับดัก",false,function(v) esp.traps=v end)
-    addToggle(Eggs,"แสดงเฉพาะไข่กลายพันธุ์ / หายาก",false,function(v) esp.rareEggsOnly=v end)
+    addToggle(Eggs,"แสดงเฉพาะไข่กลายพันธุ์และหายาก",false,function(v) esp.rareEggsOnly=v end)
     addSlider(Eggs,"ระยะการแสดงผลสูงสุด",100,2500,800," หน่วย",function(v) esp.maxDistance=v end)
 
     -- BASE
     section(Base,"ฐานและลู่วิ่ง")
-    addToggle(Base,"อัปเกรดฐาน / แปลงอัตโนมัติ",false,function(v) autoUpgradeBase=v end)
+    addToggle(Base,"อัปเกรดฐานและแปลงอัตโนมัติ",false,function(v) autoUpgradeBase=v end)
     addToggle(Base,"อัปเกรดระดับลู่วิ่งอัตโนมัติ",false,function(v) autoUpgradeTreadmill=v end)
     addToggle(Base,"ฝึกความเร็วอัตโนมัติ",false,function(v) autoTrainSpeed=v end)
     addToggle(Base,"ซื้อรางความเร็วอัตโนมัติ",false,function(v) autoBuyTrails=v end)
@@ -3208,9 +3206,9 @@ local function BuildGUI()
     addAction(Base,"สวมใส่สัตว์เลี้ยงที่ดีที่สุดตอนนี้",safeCallback(EquipBestPets))
     section(Base,"ขายอัตโนมัติ")
     addToggle(Base,"ขายสัตว์เลี้ยงระดับต่ำอัตโนมัติ",false,function(v) autoSellPets=v end)
-    addMulti(Base,"กรองความหายากของสัตว์เลี้ยง",RARITY_NAMES,function(v) selectedSellPetRarities=v end)
+    addMulti(Base,"เลือกความหายากของสัตว์เลี้ยง",RARITY_NAMES,function(v) selectedSellPetRarities=v end)
     addToggle(Base,"ขายไข่ระดับต่ำอัตโนมัติ",false,function(v) autoSellEggs=v end)
-    addMulti(Base,"กรองความหายากของไข่",RARITY_NAMES,function(v) selectedSellEggRarities=v end)
+    addMulti(Base,"เลือกความหายากของไข่",RARITY_NAMES,function(v) selectedSellEggRarities=v end)
     addAction(Base,"ขายสัตว์เลี้ยงที่เลือกตอนนี้",safeCallback(SellSelectedPets))
     addAction(Base,"ขายไข่ที่เลือกตอนนี้",safeCallback(SellSelectedEggs))
     section(Base,"อีเวนต์และบอส")
@@ -3227,14 +3225,14 @@ local function BuildGUI()
     addAction(Base,"รับรายได้ขณะไม่อยู่และ Codex ตอนนี้",safeCallback(ClaimAllAvailableRewards))
 
     -- COMBAT
-    section(Combat,"ออร่าตีไม้ / ตบ")
-    addToggle(Combat,"ออร่าตีไม้ / ตบ",false,function(v) batAuraEnabled=v end)
+    section(Combat,"ออร่าตีไม้และตบ")
+    addToggle(Combat,"ออร่าตีไม้และตบ",false,function(v) batAuraEnabled=v end)
     addSlider(Combat,"รัศมีออร่า",5,50,20," หน่วย",function(v) batAuraRadius=v end)
     addSlider(Combat,"ช่วงหน่วงการตี",.05,1,.2," วินาที",function(v) batAuraDelay=v end)
     addAction(Combat,"ตีไม้หนึ่งครั้ง",safeCallback(function() local r=GetNetRemote("RE/BatSwing/Trigger"); if r then r:FireServer() end end))
     section(Combat,"ป้องกันและการ์ด")
     addToggle(Combat,"ป้องกันกับดัก",true,function(v) avoidTrapsEnabled=v; if v then pcall(NeutralizeTraps) end end)
-    addToggle(Combat,"ป้องกันการกระเด็น / ล้ม",true,function(v) SetNoKnockback(v) end)
+    addToggle(Combat,"ป้องกันการกระเด็นและล้ม",true,function(v) SetNoKnockback(v) end)
     addToggle(Combat,"ป้องกันการล้ม",true,function(v) antiRagdollEnabled=v end)
 
     -- PLAYER
@@ -3246,7 +3244,7 @@ local function BuildGUI()
     addToggle(Player,"กระโดดไม่จำกัด",false,function(v) infiniteJump=v end)
     addToggle(Player,"บินแบบนุ่มนวล",false,function(v) if v then startFly() else stopFly() end end)
     addSlider(Player,"ความเร็วบิน",20,250,60," หน่วย/วิ",function(v) flySpeed=v end)
-    addToggle(Player,"ป้องกันการโดน (AFK)",false,SetAntiAFK)
+    addToggle(Player,"ป้องกันการหยุดนิ่ง",false,SetAntiAFK)
     section(Player,"เดินทางไปพื้นที่")
     local areaKeys={}; for k in pairs(AREA_COORDINATES) do table.insert(areaKeys,k) end; table.sort(areaKeys)
     local selectedAreaTp="Base / Plot"
@@ -3265,13 +3263,13 @@ local function BuildGUI()
     addAction(Player,"เดินทางไปหาผู้เล่น",safeCallback(function() if not selectedPlayerName then return end; local pl=Players:FindFirstChild(selectedPlayerName); local r=pl and pl.Character and pl.Character:FindFirstChild("HumanoidRootPart"); if r then TravelToDestination(r.Position+Vector3.new(0,2,0),glideSpeed,false) end end))
     section(Player,"ภาพและประสิทธิภาพ")
     addToggle(Player,"สว่างเต็มที่",false,SetFullbright)
-    addAction(Player,"ลบภาพสัตว์เลี้ยงของฉัน (เพิ่ม FPS)",safeCallback(function() Notify("ประสิทธิภาพ","ลบแล้ว "..DeleteOwnPetRenders().." โมเดล","สำเร็จ") end))
+    addAction(Player,"ลบภาพสัตว์เลี้ยงของฉันเพื่อเพิ่มประสิทธิภาพ",safeCallback(function() Notify("ประสิทธิภาพ","ลบแล้ว "..DeleteOwnPetRenders().." โมเดล","สำเร็จ") end))
 
     -- SETTINGS
     section(Settings,"การควบคุม")
     addAction(Settings,"ซ่อน / แสดงเมนู",function() main.Visible=not main.Visible; if mini then mini.Visible=not main.Visible end end)
     addAction(Settings,"ปิดสคริปต์ / หยุดทั้งหมด",function() if State.Unload then State.Unload() end end)
-    addInfo(Settings,"SPEENO HUB"," ออโต้ฟาร์ม • การทำงาน • วิ่งเร็ว • GUI พร้อมใช้งาน")
+    addInfo(Settings,"เมนูหลัก","เมนูควบคุมแบบกำหนดเอง แถบด้านซ้าย รองรับการสัมผัสและเมาส์ ขนาดกะทัดรัด")
 
     -- MINIMIZED MODE: a small movable menu button, not the old GUI.
     mini = Instance.new("TextButton")
@@ -3280,7 +3278,7 @@ local function BuildGUI()
     mini.Position = UDim2.new(0, 10, 0.5, -17)
     mini.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
     mini.BorderSizePixel = 0
-    mini.Text = "SPEENO HUB  •  เปิด"
+    mini.Text = "เปิดเมนู"
     mini.Font = Enum.Font.GothamBold
     mini.TextSize = 11
     mini.Visible = false
@@ -3407,4 +3405,4 @@ State.Unload = function()
     end)
 end
 
-Notify("SPEENO", "โหลด GUI แบบกำหนดเองสำเร็จ", "Success", 3.5)
+Notify("เมนูหลัก", "โหลด GUI แบบกำหนดเองสำเร็จ", "Success", 3.5)
