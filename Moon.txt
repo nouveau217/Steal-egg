@@ -386,38 +386,43 @@ end
 
 local HookFn = hookfunction or replaceclosure or hookfunc or detour_function
 
+-- IMPORTANT: the GUI must still load when an executor refuses a C-closure hook.
+-- Older versions allowed this hook to throw at startup, which stopped the entire
+-- script before execution ever reached the GUI section.
 if anyRemote and HookFn then
-    local oldFire
-    oldFire = HookFn(anyRemote.FireServer, function(self, ...)
-        local args = table.pack(...)
-        if not remoteSet[self] then
-            return oldFire(self, unpack(args, 1, args.n))
-        end
-
-        local a1 = args[1]
-
-        if type(a1) == "string" and #a1 == 12 then
-            if not model then
-                model = learn(self, a1, args[2])
-            else
-                local c = parseCounter(rawget(model.state, model.map.marker))
-                if c and encode(model, c) ~= a1 then
-                    local m = learn(self, a1, args[2])
-                    if m then m.spoofed = model.spoofed; model = m end
-                end
+    pcall(function()
+        local oldFire
+        oldFire = HookFn(anyRemote.FireServer, function(self, ...)
+            local args = table.pack(...)
+            if not remoteSet[self] then
+                return oldFire(self, unpack(args, 1, args.n))
             end
+
+            local a1 = args[1]
+
+            if type(a1) == "string" and #a1 == 12 then
+                if not model then
+                    model = learn(self, a1, args[2])
+                else
+                    local c = parseCounter(rawget(model.state, model.map.marker))
+                    if c and encode(model, c) ~= a1 then
+                        local m = learn(self, a1, args[2])
+                        if m then m.spoofed = model.spoofed; model = m end
+                    end
+                end
+                return oldFire(self, unpack(args, 1, args.n))
+            end
+
+            if model and type(a1) == "string" and #a1 == 4 then
+                local c = liveCounter(model)
+                args[1] = encode(model, c)
+                args[2] = refreshArg2(model)
+                model.spoofed = (model.spoofed or 0) + 1
+                return oldFire(self, unpack(args, 1, math.max(args.n, 2)))
+            end
+
             return oldFire(self, unpack(args, 1, args.n))
-        end
-
-        if model and type(a1) == "string" and #a1 == 4 then
-            local c = liveCounter(model)
-            args[1] = encode(model, c)
-            args[2] = refreshArg2(model)
-            model.spoofed = (model.spoofed or 0) + 1
-            return oldFire(self, unpack(args, 1, math.max(args.n, 2)))
-        end
-
-        return oldFire(self, unpack(args, 1, args.n))
+        end)
     end)
 end
 
@@ -2563,20 +2568,26 @@ do
     -- Use the most reliable GUI container available in executors, then fall back
     -- to PlayerGui for normal LocalScript execution.
     local guiParent
+
+    -- PlayerGui is the most reliable target on both mobile and desktop.
+    -- gethui/CoreGui are only used when PlayerGui is unavailable or rejected.
     pcall(function()
-        if typeof(gethui) == "function" then
-            guiParent = gethui()
-        end
+        guiParent = LP:FindFirstChildOfClass("PlayerGui")
     end)
+    if not guiParent then
+        pcall(function()
+            if typeof(gethui) == "function" then guiParent = gethui() end
+        end)
+    end
     if not guiParent then
         pcall(function() guiParent = game:GetService("CoreGui") end)
     end
-    if not guiParent then
-        guiParent = LP:WaitForChild("PlayerGui")
-    end
+    if not guiParent then return end
 
-    local old = guiParent:FindFirstChild("SPEENO_CUSTOM_GUI")
-    if old then old:Destroy() end
+    pcall(function()
+        local old = guiParent:FindFirstChild("SPEENO_CUSTOM_GUI")
+        if old then old:Destroy() end
+    end)
 
     local screen = Instance.new("ScreenGui")
     screen.Name = "SPEENO_CUSTOM_GUI"
@@ -2585,7 +2596,17 @@ do
     screen.DisplayOrder = 999999
     screen.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screen.Enabled = true
-    screen.Parent = guiParent
+    local parentOK = pcall(function() screen.Parent = guiParent end)
+    if not parentOK or not screen.Parent then
+        local pg = LP:FindFirstChildOfClass("PlayerGui")
+        if pg and pg ~= guiParent then
+            pcall(function() screen.Parent = pg end)
+        end
+    end
+    if not screen.Parent then
+        pcall(function() screen:Destroy() end)
+        return
+    end
 
     local main = Instance.new("Frame")
     main.Name = "Main"
