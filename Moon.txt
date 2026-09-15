@@ -438,9 +438,6 @@ end
 
 local HookFn = hookfunction or replaceclosure or hookfunc or detour_function
 
--- IMPORTANT: the GUI must still load when an executor refuses a C-closure hook.
--- Older versions allowed this hook to throw at startup, which stopped the entire
--- script before execution ever reached the GUI section.
 if anyRemote and HookFn then
     pcall(function()
         local oldFire
@@ -567,6 +564,7 @@ task.spawn(function()
         task.wait(0.2)
     end
 end)
+
 
 -- ==============================================================================
 -- GAME NETWORKING & MODULE INTEGRATION
@@ -1153,8 +1151,8 @@ local function GetMatchingFieldEggs(areasFilter, raritiesFilter, mutationsFilter
         end
     end
 
-    -- Rare Egg Hunter: only sort by score when the option is enabled.
-    if rareEggHunter and #matched > 1 then
+    -- Rare Egg Hunter: sort matched eggs by total score descending (Highest Rarity First)
+    if #matched > 1 then
         table.sort(matched, function(a, b)
             return a.score > b.score
         end)
@@ -1606,8 +1604,6 @@ local function StealSpecificEggRobust(targetItem)
     return carried or isPlayerCarryingEgg()
 end
 
-local HatchAllReadyEggs
-
 local function StealBestEggOnce()
     pcall(HatchAllReadyEggs)
     local eggs = GetMatchingFieldEggs(selectedStealAreas, selectedStealRarities, selectedMutationTypes)
@@ -1619,7 +1615,7 @@ local function StealBestEggOnce()
     return StealSpecificEggRobust(target)
 end
 
-HatchAllReadyEggs = function()
+local function HatchAllReadyEggs()
     if not EggState or not EggState.ReadOwnedEggs then return 0 end
     local ok, snapshot = pcall(EggState.ReadOwnedEggs, LP.UserId)
     if not ok or not snapshot then return 0 end
@@ -1674,7 +1670,7 @@ Boss.Data = nil
 Boss.MasteryData = nil
 
 -- Loaded on first use instead of at script load: keeps the startup path of this
--- State free of anything device specific (phones were crashing at execute time).
+-- HUB free of anything device specific (phones were crashing at execute time).
 function Boss.EnsureData()
     if Boss._dataTried then return end
     Boss._dataTried = true
@@ -1966,7 +1962,7 @@ function Boss.InstallHazardHook()
         touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
     end)
     if touchOnly then
-        Notify("อันตรายของบอส", "การป้องกันอันตรายไม่รองรับบนมือถือ - บอสยังสามารถโจมตีคุณได้", "ข้อผิดพลาด")
+        Notify("Boss Hazards", "Hazard immunity is not supported on mobile - the boss can still hit you", "Error")
         return false
     end
 
@@ -2142,7 +2138,6 @@ task.spawn(function()
     while not State.dead do
         if autoUpgradeBase then pcall(UpgradeHomesteadBase) end
         if autoUpgradeTreadmill then pcall(UpgradeTreadmillTier) end
-        if autoBuyTrails then pcall(BuyAffordableTrails) end
         if autoEquipBestPets then pcall(EquipBestPets) end
         if autoClaimRewards then pcall(ClaimAllAvailableRewards) end
         if Boss.autoMastery then pcall(Boss.ClaimMastery) end
@@ -2456,7 +2451,7 @@ track(RunService.RenderStepped:Connect(function()
                 obj.name.Visible = true
             end
             if obj.dist then
-                obj.dist.Text = math.floor(item.Dist) .. " หน่วย"
+                obj.dist.Text = math.floor(item.Dist) .. " studs"
                 obj.dist.Position = Vector2.new(screenPos.X, screenPos.Y + 2)
                 obj.dist.Color = Color3.fromRGB(220, 220, 220)
                 obj.dist.Visible = true
@@ -2511,34 +2506,6 @@ local flying           = false
 local flySpeed         = 60
 local antiAFK          = false
 
--- Anti-ragdoll is controlled by its toggle.  The previous version only changed
--- a variable, so turning the option on had no actual effect.
-local antiRagdollConn = nil
-local function SetAntiRagdoll(v)
-    antiRagdollEnabled = v == true
-    if antiRagdollConn then
-        pcall(function() antiRagdollConn:Disconnect() end)
-        antiRagdollConn = nil
-    end
-    if not antiRagdollEnabled then return end
-
-    local hum = findHum()
-    if not hum then return end
-    antiRagdollConn = track(hum.StateChanged:Connect(function(_, newState)
-        if not antiRagdollEnabled or State.dead then return end
-        if newState == Enum.HumanoidStateType.Ragdoll
-            or newState == Enum.HumanoidStateType.FallingDown
-            or newState == Enum.HumanoidStateType.Physics then
-            pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-        end
-    end))
-end
-
-track(LP.CharacterAdded:Connect(function()
-    task.wait(0.25)
-    if antiRagdollEnabled then SetAntiRagdoll(true) end
-end))
-
 local function ApplyWalkSpeed(v)
     walkSpeedVal = v
     local hum = findHum()
@@ -2564,7 +2531,7 @@ track(RunService.Stepped:Connect(function()
 end))
 
 track(UserInputService.JumpRequest:Connect(function()
-    if State.dead or not infiniteJump then return end
+    if State.dead then return end
     local hum = findHum()
     if hum then
         hum.Jump = true
@@ -2643,10 +2610,8 @@ local function SetAntiAFK(v)
     end
 end
 
--- The option defaults to enabled, so apply it once after the helper exists.
-pcall(function() if antiRagdollEnabled then SetAntiRagdoll(true) end end)
+-- ==============================================================================
 
--- ===============================================================================
 -- CUSTOM GUI - BUILT DIRECTLY WITH ROBLOX INSTANCES
 -- No external UI library / no old UI system / no old tab or button objects.
 -- The whole builder lives in its own function to avoid Luau's 200-local limit
@@ -3008,7 +2973,57 @@ local function BuildGUI()
         return map[tostring(v)] or tostring(v)
     end
 
-    -- Real popup dropdown: tap the row, then tap an option.
+    -- Popup selectors are placed directly under the ScreenGui so they never sit behind
+    -- other ScrollingFrame rows or get hidden by the content text.
+    local openPopup = nil
+    local function positionPopup(popup, anchor, height)
+        local abs = anchor.AbsolutePosition
+        local size = anchor.AbsoluteSize
+        local view = screen.AbsoluteSize
+        local width = math.max(180, size.X)
+        local y = abs.Y + size.Y + 4
+        if y + height > view.Y - 6 then
+            y = math.max(6, abs.Y - height - 4)
+        end
+        local x = math.clamp(abs.X, 6, math.max(6, view.X - width - 6))
+        popup.Size = UDim2.fromOffset(width, height)
+        popup.Position = UDim2.fromOffset(x, y)
+    end
+
+    local function closePopup(popup)
+        if popup then popup.Visible = false end
+        if openPopup == popup then openPopup = nil end
+    end
+
+    local function openOrClosePopup(popup, anchor, height)
+        if openPopup and openPopup ~= popup then
+            closePopup(openPopup)
+        end
+        if popup.Visible then
+            closePopup(popup)
+            return
+        end
+        positionPopup(popup, anchor, height)
+        popup.Visible = true
+        openPopup = popup
+    end
+
+    local function makePopup(parent, height)
+        local popup = Instance.new("Frame")
+        popup.Visible = false
+        popup.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+        popup.BorderSizePixel = 0
+        popup.ZIndex = 1000
+        popup.Parent = screen
+        Instance.new("UICorner", popup).CornerRadius = UDim.new(0, 8)
+        local stroke = Instance.new("UIStroke", popup)
+        stroke.Color = Color3.fromRGB(100, 28, 38)
+        stroke.Transparency = 0.12
+        stroke.Thickness = 1
+        return popup
+    end
+
+    -- Single-select dropdown.
     local function addDropdown(parent, name, options, default, callback)
         options = options or {}
         local value = default
@@ -3019,81 +3034,79 @@ local function BuildGUI()
         row.Parent = parent
         local mainBtn = roundedButton(row, "", 32)
         mainBtn.ZIndex = 51
-        local popup = Instance.new("Frame")
-        popup.Visible = false
-        popup.Position = UDim2.new(0, 0, 1, 4)
-        popup.Size = UDim2.new(1, 0, 0, math.min(190, math.max(36, #options * 30)))
-        popup.BackgroundColor3 = Color3.fromRGB(20, 15, 19)
-        popup.BorderSizePixel = 0
-        popup.ZIndex = 100
-        popup.Parent = row
-        Instance.new("UICorner", popup).CornerRadius = UDim.new(0, 8)
+
+        local optionHeight = math.min(190, math.max(48, #options * 30 + 34))
+        local popup = makePopup(screen, optionHeight)
         local popScroll = Instance.new("ScrollingFrame")
-        popScroll.Size = UDim2.fromScale(1, 1)
+        popScroll.Position = UDim2.fromOffset(0, 28)
+        popScroll.Size = UDim2.new(1, 0, 1, -28)
         popScroll.BackgroundTransparency = 1
         popScroll.BorderSizePixel = 0
         popScroll.ScrollBarThickness = 3
         popScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
         popScroll.CanvasSize = UDim2.fromOffset(0, 0)
-        popScroll.ZIndex = 101
+        popScroll.ZIndex = 1001
         popScroll.Parent = popup
         local pl = Instance.new("UIListLayout", popScroll)
         pl.Padding = UDim.new(0, 3)
         pl.SortOrder = Enum.SortOrder.LayoutOrder
         local pp = Instance.new("UIPadding", popScroll)
-        pp.PaddingTop = UDim.new(0, 5); pp.PaddingBottom = UDim.new(0, 5); pp.PaddingLeft = UDim.new(0, 5); pp.PaddingRight = UDim.new(0, 5)
+        pp.PaddingTop = UDim.new(0, 4)
+        pp.PaddingBottom = UDim.new(0, 5)
+        pp.PaddingLeft = UDim.new(0, 5)
+        pp.PaddingRight = UDim.new(0, 5)
+
+        local close = roundedButton(popup, "ปิด", 24)
+        close.Position = UDim2.new(1, -60, 0, 3)
+        close.Size = UDim2.fromOffset(54, 22)
+        close.ZIndex = 1002
+        close.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+        close.Activated:Connect(function() closePopup(popup) end)
 
         local function refresh()
-            mainBtn.Text = name .. " " .. displayOption(value or "ไม่มี") .. ""
+            mainBtn.Text = name .. " " .. displayOption(value or "ไม่มี")
         end
-        for _, option in ipairs(options) do
+
+        local function addOption(option)
             local ob = roundedButton(popScroll, displayOption(option), 28)
-            ob.ZIndex = 102
+            ob.ZIndex = 1002
             ob.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
-            local busy = false
             ob.Activated:Connect(function()
-                if busy then return end
-                busy = true
                 value = option
-                popup.Visible = false
-                ob.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
                 refresh()
-                task.spawn(function()
-                    pcall(callback, value)
-                    task.wait(0.06)
-                    busy = false
-                end)
+                closePopup(popup)
+                task.spawn(function() pcall(callback, value) end)
             end)
         end
-        mainBtn.Activated:Connect(function() popup.Visible = not popup.Visible end)
+        for _, option in ipairs(options) do addOption(option) end
+
+        mainBtn.Activated:Connect(function()
+            openOrClosePopup(popup, mainBtn, optionHeight)
+        end)
         refresh()
         return {
             Get = function() return value end,
-            Set = function(v) value = v; refresh(); pcall(callback, value) end,
+            Set = function(v)
+                value = v
+                refresh()
+                task.spawn(function() pcall(callback, value) end)
+            end,
             SetOptions = function(newOptions)
+                closePopup(popup)
                 for _, child in ipairs(popScroll:GetChildren()) do
                     if child:IsA("TextButton") then child:Destroy() end
                 end
                 options = newOptions or {}
-                for _, option in ipairs(options) do
-                    local ob = roundedButton(popScroll, displayOption(option), 28)
-                    ob.ZIndex = 102
-                    ob.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
-                    local busy = false
-                    ob.Activated:Connect(function()
-                        if busy then return end
-                        busy = true
-                        value = option; popup.Visible = false; refresh()
-                        task.spawn(function() pcall(callback, value); task.wait(0.06); busy = false end)
-                    end)
-                end
+                optionHeight = math.min(190, math.max(48, #options * 30 + 34))
+                for _, option in ipairs(options) do addOption(option) end
                 value = options[1]
                 refresh()
             end,
         }
     end
 
-    -- Real multi-select popup with independent check buttons.
+    -- Multi-select popup. It stays open while selecting multiple values and has a
+    -- dedicated close button, so the selection list can always be dismissed.
     local function addMulti(parent, name, options, callback)
         options = options or {}
         local selected = {}
@@ -3104,48 +3117,75 @@ local function BuildGUI()
         row.Parent = parent
         local mainBtn = roundedButton(row, "", 32)
         mainBtn.ZIndex = 51
-        local popup = Instance.new("Frame")
-        popup.Visible = false
-        popup.Position = UDim2.new(0, 0, 1, 4)
-        popup.Size = UDim2.new(1, 0, 0, math.min(210, math.max(40, #options * 30)))
-        popup.BackgroundColor3 = Color3.fromRGB(20, 15, 19)
-        popup.BorderSizePixel = 0
-        popup.ZIndex = 100
-        popup.Parent = row
-        Instance.new("UICorner", popup).CornerRadius = UDim.new(0, 8)
+
+        local optionHeight = math.min(220, math.max(58, #options * 30 + 34))
+        local popup = makePopup(screen, optionHeight)
         local sc = Instance.new("ScrollingFrame")
-        sc.Size = UDim2.fromScale(1, 1); sc.BackgroundTransparency = 1; sc.BorderSizePixel = 0; sc.ScrollBarThickness = 3; sc.AutomaticCanvasSize = Enum.AutomaticSize.Y; sc.CanvasSize = UDim2.fromOffset(0,0); sc.ZIndex=101; sc.Parent=popup
-        local lay = Instance.new("UIListLayout", sc); lay.Padding=UDim.new(0,3)
-        local pad = Instance.new("UIPadding", sc); pad.PaddingTop=UDim.new(0,5); pad.PaddingBottom=UDim.new(0,5); pad.PaddingLeft=UDim.new(0,5); pad.PaddingRight=UDim.new(0,5)
+        sc.Position = UDim2.fromOffset(0, 28)
+        sc.Size = UDim2.new(1, 0, 1, -28)
+        sc.BackgroundTransparency = 1
+        sc.BorderSizePixel = 0
+        sc.ScrollBarThickness = 3
+        sc.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        sc.CanvasSize = UDim2.fromOffset(0, 0)
+        sc.ZIndex = 1001
+        sc.Parent = popup
+        local lay = Instance.new("UIListLayout", sc)
+        lay.Padding = UDim.new(0, 3)
+        lay.SortOrder = Enum.SortOrder.LayoutOrder
+        local pad = Instance.new("UIPadding", sc)
+        pad.PaddingTop = UDim.new(0, 4)
+        pad.PaddingBottom = UDim.new(0, 5)
+        pad.PaddingLeft = UDim.new(0, 5)
+        pad.PaddingRight = UDim.new(0, 5)
+
+        local close = roundedButton(popup, "ปิด", 24)
+        close.Position = UDim2.new(1, -60, 0, 3)
+        close.Size = UDim2.fromOffset(54, 22)
+        close.ZIndex = 1002
+        close.BackgroundColor3 = Color3.fromRGB(28, 28, 32)
+        close.Activated:Connect(function() closePopup(popup) end)
 
         local function refresh()
             local out = {}
-            for _, option in ipairs(options) do if selected[option] then table.insert(out, displayOption(option)) end end
+            for _, option in ipairs(options) do
+                if selected[option] then table.insert(out, displayOption(option)) end
+            end
             local text = (#out > 0) and table.concat(out, ", ") or "ไม่มี"
-            if #text > 45 then text = text:sub(1,42) .. "..." end
-            mainBtn.Text = name .. " " .. text .. ""
+            if #text > 45 then text = text:sub(1, 42) .. "..." end
+            mainBtn.Text = name .. " " .. text
         end
-        local function emit() pcall(callback, selected) end
-        for _, option in ipairs(options) do
-            local ob = roundedButton(sc, "", 28); ob.ZIndex=102
-            ob.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+        local function emit()
+            local copy = {}
+            for k, v in pairs(selected) do copy[k] = v end
+            task.spawn(function() pcall(callback, copy) end)
+        end
+
+        local function addOption(option)
+            local ob = roundedButton(sc, "", 28)
+            ob.ZIndex = 1002
             local function rr()
                 ob.Text = (selected[option] and "เลือก " or "ไม่เลือก ") .. displayOption(option)
                 ob.BackgroundColor3 = selected[option] and Color3.fromRGB(45, 45, 50) or Color3.fromRGB(12, 12, 16)
             end
-            local busy = false
             ob.Activated:Connect(function()
-                if busy then return end
-                busy = true
-                selected[option]=not selected[option]
-                rr(); refresh(); emit()
-                task.delay(0.06, function() busy = false end)
+                selected[option] = not selected[option]
+                rr()
+                refresh()
+                emit()
             end)
             rr()
         end
-        mainBtn.Activated:Connect(function() popup.Visible=not popup.Visible end)
+        for _, option in ipairs(options) do addOption(option) end
+
+        mainBtn.Activated:Connect(function()
+            openOrClosePopup(popup, mainBtn, optionHeight)
+        end)
         refresh()
-        return {Get=function() return selected end}
+        return {
+            Get = function() return selected end,
+            Close = function() closePopup(popup) end,
+        }
     end
 
     -- Touch/mouse slider. Drag the bar or use +/- buttons.
@@ -3278,7 +3318,7 @@ local function BuildGUI()
     section(Combat,"ป้องกันและการ์ด")
     addToggle(Combat,"ป้องกันกับดัก",true,function(v) avoidTrapsEnabled=v; if v then pcall(NeutralizeTraps) end end)
     addToggle(Combat,"ป้องกันการกระเด็นและล้ม",true,function(v) SetNoKnockback(v) end)
-    addToggle(Combat,"ป้องกันการล้ม",true,SetAntiRagdoll)
+    addToggle(Combat,"ป้องกันการล้ม",true,function(v) antiRagdollEnabled=v end)
 
     -- PLAYER
     section(Player,"การเคลื่อนที่")
