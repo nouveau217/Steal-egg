@@ -853,11 +853,11 @@ end
 -- ==============================================================================
 local RARITY_SCORE_MAP = {
     ["LightDark"]       = 1300, -- "Angels & Demons" biome rarity (new)
-    ["Light & Dark"]    = 1300,
-    ["Titan"]           = 1100,
-    ["Divine"]          = 1000,
-    ["Transcendent"]    = 1000,
-    ["Superior"]        = 1000,
+    ["Light & Dark"]    = 1200,
+    ["Titan"]           = 1000,
+    ["Divine"]          = 900,
+    ["Transcendent"]    = 900,
+    ["Superior"]        = 900,
     ["Eternal"]         = 900,
     ["Limited"]         = 900,
     ["Secret"]          = 800,
@@ -875,10 +875,10 @@ local RARITY_SCORE_MAP = {
     ["Epic"]            = 400,
     ["Rare"]            = 300,
     ["SuperRare"]       = 200,
-    ["Celestial"]       = 200,
-    ["Uncommon"]        = 200,
-    ["Basic"]           = 100,
-    ["Common"]          = 100,
+    ["Celestial"]       = 100,
+    ["Uncommon"]        = 100,
+    ["Basic"]           = 50,
+    ["Common"]          = 50,
 }
 
 local AREA_COORDINATES = {
@@ -926,7 +926,7 @@ local selectedStealRarities     = {}
 local selectedStealAreas        = {}
 local selectedMutationTypes     = {}
 local stealDelay                = 1.5
-local glideSpeed                = 750
+local glideSpeed                = 600
 local ignoredEggs               = {} -- [uid] = timestamp (prevents loops on failed eggs)
 
 -- Saved Return Position (automatically captured on first steal activation)
@@ -1264,7 +1264,7 @@ local function StealSpecificEggRobust(targetItem)
     EnsureSavedReturnPosition()
 
     local targetPos = record.BoundsCFrame.Position
-    local speed = math.clamp(tonumber(glideSpeed) or 750, 50, 750)
+    local speed = math.clamp(tonumber(glideSpeed) or 600, 50, 600)
     -- 1. Travel to egg nest: glide there via the road
     TravelToDestination(targetPos + Vector3.new(0, 1.2, 0), speed, true)
     if hrp then
@@ -2728,7 +2728,7 @@ local function BuildGUI()
     title.BackgroundTransparency = 1
     title.Position = UDim2.fromOffset(11, 4)
     title.Size = UDim2.new(1, -95, 0, 20)
-    title.Text = "เมนูหลัก"
+    title.Text = "SPEEDNO HUB"
     title.Font = Enum.Font.GothamBold
     title.TextSize = 15
     title.TextColor3 = TEXT
@@ -2739,7 +2739,7 @@ local function BuildGUI()
     subTitle.BackgroundTransparency = 1
     subTitle.Position = UDim2.fromOffset(11, 23)
     subTitle.Size = UDim2.new(1, -95, 0, 12)
-    subTitle.Text = "แผงควบคุม"
+    subTitle.Text = "discord.gg/JXJvEm5wU"
     subTitle.Font = Enum.Font.Gotham
     subTitle.TextSize = 8
     subTitle.TextTransparency = 0.05
@@ -2750,7 +2750,7 @@ local function BuildGUI()
     local minimize = Instance.new("TextButton")
     minimize.Size = UDim2.fromOffset(32, 30)
     minimize.Position = UDim2.new(1, -72, 0, 8)
-    minimize.Text = "ย่อ"
+    minimize.Text = "–"
     minimize.Font = Enum.Font.GothamBold
     minimize.TextSize = 18
     minimize.BackgroundColor3 = Color3.fromRGB(29, 20, 24)
@@ -2762,7 +2762,7 @@ local function BuildGUI()
     local close = Instance.new("TextButton")
     close.Size = UDim2.fromOffset(32, 30)
     close.Position = UDim2.new(1, -36, 0, 8)
-    close.Text = "ปิด"
+    close.Text = "X"
     close.Font = Enum.Font.GothamBold
     close.TextSize = 18
     close.BackgroundColor3 = Color3.fromRGB(29, 20, 24)
@@ -3363,7 +3363,7 @@ local function BuildGUI()
     mini.Position = UDim2.new(0, 10, 0.5, -17)
     mini.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
     mini.BorderSizePixel = 0
-    mini.Text = "เปิดเมนู"
+    mini.Text = "•SPEEDNO HUB"
     mini.Font = Enum.Font.GothamBold
     mini.TextSize = 11
     mini.Visible = false
@@ -3490,4 +3490,4 @@ State.Unload = function()
     end)
 end
 
-Notify("เมนูหลัก", "โหลด GUI แบบกำหนดเองสำเร็จ", "Success", 3.5)
+Notify("SPEEDNO HUB", "โหลด GUI แบบกำหนดเองสำเร็จ", "Success", 3.5)
